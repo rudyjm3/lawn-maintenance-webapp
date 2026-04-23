@@ -30,6 +30,25 @@ const OnboardingSchema = z.object({
   clientAddress: z.string().trim().optional(),
 })
 
+// Pre-loaded service type templates seeded for every new tenant
+const SERVICE_TEMPLATES = [
+  { name: "Weekly Mow",      default_duration_min: 45,  default_price: 65,  is_recurring: true,  is_seasonal: true  },
+  { name: "Biweekly Mow",   default_duration_min: 60,  default_price: 85,  is_recurring: true,  is_seasonal: true  },
+  { name: "Hedge Trim",      default_duration_min: 90,  default_price: 120, is_recurring: false, is_seasonal: false },
+  { name: "Leaf Cleanup",    default_duration_min: 120, default_price: 175, is_recurring: false, is_seasonal: true  },
+  { name: "Fertilization",   default_duration_min: 30,  default_price: 95,  is_recurring: true,  is_seasonal: true  },
+  { name: "Spring Cleanup",  default_duration_min: 180, default_price: 250, is_recurring: false, is_seasonal: true  },
+  { name: "Fall Cleanup",    default_duration_min: 180, default_price: 250, is_recurring: false, is_seasonal: true  },
+]
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
 // ─── Action ───────────────────────────────────────────────────────────────────
 
 export async function completeOnboarding(
@@ -54,9 +73,49 @@ export async function completeOnboarding(
     return { success: false, message: "Not authenticated." }
   }
 
-  // Update user metadata with business profile
-  const { error } = await supabase.auth.updateUser({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  // 1. Create tenant row
+  const baseSlug = slugify(parsed.data.businessName)
+  const slug = `${baseSlug}-${Date.now().toString(36)}`
+
+  const { data: tenant, error: tenantError } = await db
+    .from("tenants")
+    .insert({
+      business_name: parsed.data.businessName,
+      slug,
+      timezone: parsed.data.timezone,
+      phone: parsed.data.phone || null,
+      email: user.email ?? null,
+    })
+    .select("id")
+    .single()
+
+  if (tenantError) {
+    return { success: false, message: `Failed to create account: ${tenantError.message}` }
+  }
+
+  const tenantId: string = tenant.id
+
+  // 2. Create user profile row
+  const { error: userError } = await db.from("users").insert({
+    tenant_id: tenantId,
+    auth_user_id: user.id,
+    first_name: user.user_metadata?.first_name ?? "",
+    last_name: user.user_metadata?.last_name ?? "",
+    role: "owner",
+    is_active: true,
+  })
+
+  if (userError) {
+    return { success: false, message: `Failed to create user profile: ${userError.message}` }
+  }
+
+  // 3. Store tenant_id in auth user metadata so the JWT carries it for RLS
+  await supabase.auth.updateUser({
     data: {
+      tenant_id: tenantId,
       business_name: parsed.data.businessName,
       phone: parsed.data.phone,
       timezone: parsed.data.timezone,
@@ -64,12 +123,26 @@ export async function completeOnboarding(
     },
   })
 
-  if (error) {
-    return { success: false, message: error.message }
-  }
+  // 4. Seed default service types for this tenant
+  const serviceRows = SERVICE_TEMPLATES.map((t) => ({ ...t, tenant_id: tenantId }))
+  await db.from("service_types").insert(serviceRows)
 
-  // TODO (Sprint 2): insert tenant row, service_types, and first client
-  // into the database once the schema is applied via Supabase migrations.
+  // 5. If a first client was provided, create them
+  const firstName = parsed.data.clientFirstName?.trim()
+  const lastName = parsed.data.clientLastName?.trim()
+  const clientName = [firstName, lastName].filter(Boolean).join(" ")
+
+  if (clientName) {
+    await db.from("clients").insert({
+      tenant_id: tenantId,
+      name: clientName,
+      email: parsed.data.clientEmail || null,
+      phone: parsed.data.clientPhone || null,
+      billing_address: parsed.data.clientAddress || null,
+      status: "active",
+      source: "walk-in",
+    })
+  }
 
   redirect("/dashboard")
 }
