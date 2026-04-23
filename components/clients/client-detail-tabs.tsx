@@ -14,10 +14,13 @@ import {
   Clock,
   XCircle,
   SkipForward,
+  Pencil,
+  Plus,
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { AddPropertySheet } from "@/components/properties/add-property-sheet"
 import { type Client, type Property, type Job } from "@/types"
 import { cn } from "@/lib/utils"
 
@@ -186,86 +189,120 @@ function OverviewTab({
 
 // ─── Properties tab ───────────────────────────────────────────────────────────
 
-function PropertiesTab({ properties }: { properties: Property[] }) {
+function PropertiesTab({
+  properties,
+  client,
+}: {
+  properties: Property[]
+  client: Client
+}) {
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [editingProperty, setEditingProperty] = useState<Property | undefined>(undefined)
+
   return (
-    <div className="space-y-3">
-      {properties.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-10 text-center">
-          <Building2 className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
-          <p className="text-sm font-medium text-foreground">No properties yet</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Add a property to start scheduling services.
-          </p>
-          <Button variant="outline" size="sm" className="mt-4">
+    <>
+      <div className="space-y-3">
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setEditingProperty(undefined); setSheetOpen(true) }}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
             Add Property
           </Button>
         </div>
-      ) : (
-        properties.map((p) => (
-          <div
-            key={p.id}
-            className="rounded-xl border border-border bg-card p-5 space-y-3"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-2.5">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                <div>
-                  <p className="font-medium text-sm text-foreground">
-                    {p.address}
-                  </p>
-                  <div className="mt-1 flex items-center gap-2">
-                    {p.is_commercial ? (
-                      <Badge
-                        variant="outline"
-                        className="text-xs bg-violet-100 text-violet-700 border-transparent dark:bg-violet-950/50 dark:text-violet-400"
-                      >
-                        Commercial
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="outline"
-                        className="text-xs bg-emerald-100 text-emerald-700 border-transparent dark:bg-emerald-950/50 dark:text-emerald-400"
-                      >
-                        Residential
-                      </Badge>
-                    )}
-                    {p.lawn_size && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Ruler className="h-3 w-3" />
-                        {p.lawn_size}
-                      </span>
-                    )}
+
+        {properties.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card p-10 text-center">
+            <Building2 className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm font-medium text-foreground">No properties yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Add a property to start scheduling services.
+            </p>
+          </div>
+        ) : (
+          properties.map((p) => (
+            <div
+              key={p.id}
+              className="group rounded-xl border border-border bg-card p-5 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium text-sm text-foreground">
+                      {p.address}
+                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      {p.is_commercial ? (
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-violet-100 text-violet-700 border-transparent dark:bg-violet-950/50 dark:text-violet-400"
+                        >
+                          Commercial
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-xs bg-emerald-100 text-emerald-700 border-transparent dark:bg-emerald-950/50 dark:text-emerald-400"
+                        >
+                          Residential
+                        </Badge>
+                      )}
+                      {p.lawn_size && (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Ruler className="h-3 w-3" />
+                          {p.lawn_size}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
+                <button
+                  onClick={() => { setEditingProperty(p); setSheetOpen(true) }}
+                  className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition-all"
+                  aria-label="Edit property"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
               </div>
-            </div>
 
-            {(p.gate_code || p.access_notes || p.pet_notes) && (
-              <div className="flex flex-wrap gap-3 border-t border-border pt-3">
-                {p.gate_code && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <KeyRound className="h-3.5 w-3.5" />
-                    Gate: <span className="font-mono font-semibold text-foreground">{p.gate_code}</span>
-                  </div>
-                )}
-                {p.access_notes && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <FileText className="h-3.5 w-3.5" />
-                    {p.access_notes}
-                  </div>
-                )}
-                {p.pet_notes && (
-                  <div className="flex items-center gap-1.5 text-xs text-amber-600">
-                    <PawPrint className="h-3.5 w-3.5" />
-                    {p.pet_notes}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))
-      )}
-    </div>
+              {(p.gate_code || p.access_notes || p.pet_notes) && (
+                <div className="flex flex-wrap gap-3 border-t border-border pt-3">
+                  {p.gate_code && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <KeyRound className="h-3.5 w-3.5" />
+                      Gate: <span className="font-mono font-semibold text-foreground">{p.gate_code}</span>
+                    </div>
+                  )}
+                  {p.access_notes && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <FileText className="h-3.5 w-3.5" />
+                      {p.access_notes}
+                    </div>
+                  )}
+                  {p.pet_notes && (
+                    <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                      <PawPrint className="h-3.5 w-3.5" />
+                      {p.pet_notes}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      <AddPropertySheet
+        open={sheetOpen}
+        onOpenChange={(open) => { setSheetOpen(open); if (!open) setEditingProperty(undefined) }}
+        clients={[client]}
+        defaultClientId={client.id}
+        property={editingProperty}
+      />
+    </>
   )
 }
 
@@ -426,7 +463,7 @@ export function ClientDetailTabs({
         <OverviewTab client={client} properties={properties} jobs={jobs} />
       </TabsContent>
       <TabsContent value="properties">
-        <PropertiesTab properties={properties} />
+        <PropertiesTab properties={properties} client={client} />
       </TabsContent>
       <TabsContent value="history">
         <JobHistoryTab jobs={jobs} />

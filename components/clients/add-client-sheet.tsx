@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
-import { UserPlus } from "lucide-react"
+import { UserPlus, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,8 +24,10 @@ import {
   SheetFooter,
   SheetClose,
 } from "@/components/ui/sheet"
+import { saveClient } from "@/app/actions/clients"
+import { type Client } from "@/types"
 
-interface AddClientFormValues {
+interface ClientFormValues {
   name: string
   email: string
   phone: string
@@ -38,10 +40,12 @@ interface AddClientFormValues {
 interface AddClientSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  client?: Client
 }
 
-export function AddClientSheet({ open, onOpenChange }: AddClientSheetProps) {
+export function AddClientSheet({ open, onOpenChange, client }: AddClientSheetProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isEditing = !!client
 
   const {
     register,
@@ -49,20 +53,51 @@ export function AddClientSheet({ open, onOpenChange }: AddClientSheetProps) {
     reset,
     setValue,
     formState: { errors },
-  } = useForm<AddClientFormValues>({
+  } = useForm<ClientFormValues>({
     defaultValues: {
       status: "active",
       source: "website",
     },
   })
 
-  async function onSubmit(data: AddClientFormValues) {
+  useEffect(() => {
+    if (open) {
+      if (client) {
+        reset({
+          name: client.name,
+          email: client.email ?? "",
+          phone: client.phone ?? "",
+          billing_address: client.billing_address ?? "",
+          status: client.status,
+          source: client.source ?? "website",
+          notes: client.notes ?? "",
+        })
+      } else {
+        reset({ name: "", email: "", phone: "", billing_address: "", status: "active", source: "website", notes: "" })
+      }
+    }
+  }, [open, client, reset])
+
+  async function onSubmit(data: ClientFormValues) {
     setIsSubmitting(true)
-    // TODO: Replace with real Supabase insert
-    await new Promise((r) => setTimeout(r, 600))
+    const result = await saveClient({
+      id: client?.id,
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      billing_address: data.billing_address,
+      status: data.status as Client["status"],
+      source: data.source,
+      notes: data.notes,
+    })
     setIsSubmitting(false)
-    toast.success(`${data.name} added as a client`)
-    reset()
+
+    if (!result.success) {
+      toast.error(result.message)
+      return
+    }
+
+    toast.success(result.message)
     onOpenChange(false)
   }
 
@@ -70,15 +105,16 @@ export function AddClientSheet({ open, onOpenChange }: AddClientSheetProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col overflow-y-auto sm:max-w-md">
         <SheetHeader className="pb-2">
-          <SheetTitle>Add Client</SheetTitle>
+          <SheetTitle>{isEditing ? "Edit Client" : "Add Client"}</SheetTitle>
           <SheetDescription>
-            Enter contact details for the new client. You can add properties
-            after saving.
+            {isEditing
+              ? "Update contact details for this client."
+              : "Enter contact details for the new client. You can add properties after saving."}
           </SheetDescription>
         </SheetHeader>
 
         <form
-          id="add-client-form"
+          id="client-form"
           onSubmit={handleSubmit(onSubmit)}
           className="flex flex-col gap-5 px-4 py-2"
         >
@@ -134,7 +170,8 @@ export function AddClientSheet({ open, onOpenChange }: AddClientSheetProps) {
             <div className="flex flex-col gap-1.5">
               <Label>Status</Label>
               <Select
-                defaultValue="active"
+                defaultValue={client?.status ?? "active"}
+                key={client?.status ?? "active"}
                 onValueChange={(v) => setValue("status", v)}
               >
                 <SelectTrigger>
@@ -144,13 +181,15 @@ export function AddClientSheet({ open, onOpenChange }: AddClientSheetProps) {
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="lead">Lead</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Source</Label>
               <Select
-                defaultValue="website"
+                defaultValue={client?.source ?? "website"}
+                key={client?.source ?? "website"}
                 onValueChange={(v) => setValue("source", v)}
               >
                 <SelectTrigger>
@@ -187,11 +226,15 @@ export function AddClientSheet({ open, onOpenChange }: AddClientSheetProps) {
           </SheetClose>
           <Button
             type="submit"
-            form="add-client-form"
+            form="client-form"
             disabled={isSubmitting}
           >
-            <UserPlus className="mr-2 h-4 w-4" />
-            {isSubmitting ? "Saving…" : "Add Client"}
+            {isEditing ? (
+              <Pencil className="mr-2 h-4 w-4" />
+            ) : (
+              <UserPlus className="mr-2 h-4 w-4" />
+            )}
+            {isSubmitting ? "Saving…" : isEditing ? "Save Changes" : "Add Client"}
           </Button>
         </SheetFooter>
       </SheetContent>

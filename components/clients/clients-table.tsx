@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { Search, Plus, ChevronRight, Building2 } from "lucide-react"
+import { Search, Plus, ChevronRight, Building2, Pencil } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -35,6 +35,7 @@ export function ClientsTable({ clients, properties }: ClientsTableProps) {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<ClientStatus | "all">("all")
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [editingClient, setEditingClient] = useState<Client | undefined>(undefined)
 
   const propertiesPerClient = useMemo(() => {
     const map: Record<string, number> = {}
@@ -72,7 +73,7 @@ export function ClientsTable({ clients, properties }: ClientsTableProps) {
             className="pl-9"
           />
         </div>
-        <Button onClick={() => setSheetOpen(true)}>
+        <Button onClick={() => { setEditingClient(undefined); setSheetOpen(true) }}>
           <Plus className="mr-2 h-4 w-4" />
           Add Client
         </Button>
@@ -210,9 +211,18 @@ export function ClientsTable({ clients, properties }: ClientsTableProps) {
                       })}
                     </td>
                     <td className="px-4 py-3">
-                      <Link href={`/clients/${client.id}`}>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                      </Link>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => { e.preventDefault(); setEditingClient(client); setSheetOpen(true) }}
+                          className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition-all"
+                          aria-label="Edit client"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <Link href={`/clients/${client.id}`}>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -229,7 +239,11 @@ export function ClientsTable({ clients, properties }: ClientsTableProps) {
         </p>
       )}
 
-      <AddClientSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+      <AddClientSheet
+        open={sheetOpen}
+        onOpenChange={(open) => { setSheetOpen(open); if (!open) setEditingClient(undefined) }}
+        client={editingClient}
+      />
     </>
   )
 }

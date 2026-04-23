@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
-import { MapPin } from "lucide-react"
+import { MapPin, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -24,9 +24,10 @@ import {
   SheetFooter,
   SheetClose,
 } from "@/components/ui/sheet"
-import { type Client } from "@/types"
+import { saveProperty } from "@/app/actions/properties"
+import { type Client, type Property } from "@/types"
 
-interface AddPropertyFormValues {
+interface PropertyFormValues {
   client_id: string
   address: string
   lawn_size: string
@@ -41,6 +42,7 @@ interface AddPropertySheetProps {
   onOpenChange: (open: boolean) => void
   clients: Client[]
   defaultClientId?: string
+  property?: Property
 }
 
 export function AddPropertySheet({
@@ -48,24 +50,65 @@ export function AddPropertySheet({
   onOpenChange,
   clients,
   defaultClientId,
+  property,
 }: AddPropertySheetProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const isEditing = !!property
 
   const { register, handleSubmit, reset, setValue } =
-    useForm<AddPropertyFormValues>({
+    useForm<PropertyFormValues>({
       defaultValues: {
         client_id: defaultClientId ?? "",
         is_commercial: "false",
       },
     })
 
-  async function onSubmit(data: AddPropertyFormValues) {
+  useEffect(() => {
+    if (open) {
+      if (property) {
+        reset({
+          client_id: property.client_id,
+          address: property.address,
+          lawn_size: property.lawn_size ?? "",
+          gate_code: property.gate_code ?? "",
+          access_notes: property.access_notes ?? "",
+          pet_notes: property.pet_notes ?? "",
+          is_commercial: property.is_commercial ? "true" : "false",
+        })
+      } else {
+        reset({
+          client_id: defaultClientId ?? "",
+          address: "",
+          lawn_size: "",
+          gate_code: "",
+          access_notes: "",
+          pet_notes: "",
+          is_commercial: "false",
+        })
+      }
+    }
+  }, [open, property, defaultClientId, reset])
+
+  async function onSubmit(data: PropertyFormValues) {
     setIsSubmitting(true)
-    // TODO: Replace with real Supabase insert + geocoding
-    await new Promise((r) => setTimeout(r, 600))
+    const result = await saveProperty({
+      id: property?.id,
+      client_id: data.client_id,
+      address: data.address,
+      lawn_size: data.lawn_size,
+      gate_code: data.gate_code,
+      access_notes: data.access_notes,
+      pet_notes: data.pet_notes,
+      is_commercial: data.is_commercial === "true",
+    })
     setIsSubmitting(false)
-    toast.success("Property added")
-    reset()
+
+    if (!result.success) {
+      toast.error(result.message)
+      return
+    }
+
+    toast.success(result.message)
     onOpenChange(false)
   }
 
@@ -73,15 +116,16 @@ export function AddPropertySheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col overflow-y-auto sm:max-w-md">
         <SheetHeader className="pb-2">
-          <SheetTitle>Add Property</SheetTitle>
+          <SheetTitle>{isEditing ? "Edit Property" : "Add Property"}</SheetTitle>
           <SheetDescription>
-            Add a service address for a client. The address will be geocoded
-            when saved.
+            {isEditing
+              ? "Update this property. The address will be re-geocoded on save."
+              : "Add a service address for a client. The address will be geocoded on save."}
           </SheetDescription>
         </SheetHeader>
 
         <form
-          id="add-property-form"
+          id="property-form"
           onSubmit={handleSubmit(onSubmit)}
           className="flex flex-col gap-5 px-4 py-2"
         >
@@ -91,7 +135,8 @@ export function AddPropertySheet({
               Client <span className="text-destructive">*</span>
             </Label>
             <Select
-              defaultValue={defaultClientId ?? ""}
+              defaultValue={property?.client_id ?? defaultClientId ?? ""}
+              key={property?.client_id ?? defaultClientId ?? "none"}
               onValueChange={(v) => setValue("client_id", v)}
             >
               <SelectTrigger>
@@ -115,8 +160,11 @@ export function AddPropertySheet({
             <Input
               id="address"
               placeholder="123 Oak Lane, Springfield, IL 62701"
-              {...register("address", { required: true })}
+              {...register("address", { required: "Address is required" })}
             />
+            <p className="text-xs text-muted-foreground">
+              Street, city, state, and ZIP for accurate geocoding
+            </p>
           </div>
 
           {/* Lawn size + type */}
@@ -132,7 +180,8 @@ export function AddPropertySheet({
             <div className="flex flex-col gap-1.5">
               <Label>Property type</Label>
               <Select
-                defaultValue="false"
+                defaultValue={property ? (property.is_commercial ? "true" : "false") : "false"}
+                key={property?.id ?? "new"}
                 onValueChange={(v) => setValue("is_commercial", v)}
               >
                 <SelectTrigger>
@@ -186,11 +235,15 @@ export function AddPropertySheet({
           </SheetClose>
           <Button
             type="submit"
-            form="add-property-form"
+            form="property-form"
             disabled={isSubmitting}
           >
-            <MapPin className="mr-2 h-4 w-4" />
-            {isSubmitting ? "Saving…" : "Add Property"}
+            {isEditing ? (
+              <Pencil className="mr-2 h-4 w-4" />
+            ) : (
+              <MapPin className="mr-2 h-4 w-4" />
+            )}
+            {isSubmitting ? "Saving…" : isEditing ? "Save Changes" : "Add Property"}
           </Button>
         </SheetFooter>
       </SheetContent>

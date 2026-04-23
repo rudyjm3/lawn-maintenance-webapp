@@ -11,6 +11,7 @@ import {
   MapPin,
   Building2,
   Home,
+  Pencil,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ export function PropertiesTable({ properties, clients }: PropertiesTableProps) {
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [editingProperty, setEditingProperty] = useState<Property | undefined>(undefined)
 
   // Build a client lookup map
   const clientMap = useMemo(() => {
@@ -78,7 +80,7 @@ export function PropertiesTable({ properties, clients }: PropertiesTableProps) {
             className="pl-9"
           />
         </div>
-        <Button onClick={() => setSheetOpen(true)}>
+        <Button onClick={() => { setEditingProperty(undefined); setSheetOpen(true) }}>
           <Plus className="mr-2 h-4 w-4" />
           Add Property
         </Button>
@@ -139,7 +141,7 @@ export function PropertiesTable({ properties, clients }: PropertiesTableProps) {
             return (
               <div
                 key={property.id}
-                className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3 hover:border-primary/40 transition-colors"
+                className="group rounded-xl border border-border bg-card p-4 flex flex-col gap-3 hover:border-primary/40 transition-colors"
               >
                 {/* Address + type badge */}
                 <div className="flex items-start justify-between gap-2">
@@ -149,6 +151,14 @@ export function PropertiesTable({ properties, clients }: PropertiesTableProps) {
                       {property.address}
                     </p>
                   </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={() => { setEditingProperty(property); setSheetOpen(true) }}
+                      className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition-all"
+                      aria-label="Edit property"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
                   <Badge
                     variant="outline"
                     className={cn(
@@ -170,6 +180,7 @@ export function PropertiesTable({ properties, clients }: PropertiesTableProps) {
                       </>
                     )}
                   </Badge>
+                  </div>
                 </div>
 
                 {/* Client link */}
@@ -225,8 +236,9 @@ export function PropertiesTable({ properties, clients }: PropertiesTableProps) {
 
       <AddPropertySheet
         open={sheetOpen}
-        onOpenChange={setSheetOpen}
+        onOpenChange={(open) => { setSheetOpen(open); if (!open) setEditingProperty(undefined) }}
         clients={clients}
+        property={editingProperty}
       />
     </>
   )
