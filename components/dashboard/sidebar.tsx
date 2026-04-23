@@ -28,7 +28,7 @@ const navItems = [
   { label: "Jobs", href: "/jobs", icon: ClipboardList, phase: "mvp" },
   { label: "Clients", href: "/clients", icon: Users, phase: "mvp" },
   { label: "Properties", href: "/properties", icon: Building2, phase: "mvp" },
-  { label: "Services", href: "/services", icon: Wrench, phase: "mvp" },
+  { label: "Services", href: "/service-catalog", icon: Wrench, phase: "mvp" },
   { label: "Schedules", href: "/schedules", icon: RefreshCcw, phase: "mvp" },
   { label: "Route Planner", href: "/routes", icon: Map, phase: "phase2" },
   { label: "Crews & Team", href: "/crews", icon: UserCog, phase: "phase2" },
