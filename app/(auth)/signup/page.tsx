@@ -2,6 +2,7 @@
 
 import { useActionState } from "react"
 import Link from "next/link"
+import { MailCheck } from "lucide-react"
 import { signup, type ActionState } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +13,24 @@ export default function SignupPage() {
     signup,
     null,
   )
+
+  // Email confirmation required — Supabase sent a link, user isn't logged in yet
+  if (state?.success && state.message) {
+    return (
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+          <MailCheck className="h-6 w-6 text-primary" />
+        </div>
+        <h1 className="text-xl font-semibold">Check your email</h1>
+        <p className="text-sm text-muted-foreground max-w-sm">{state.message}</p>
+        <Link href="/login" className="text-sm font-medium text-foreground hover:underline">
+          Back to sign in
+        </Link>
+      </div>
+    )
+  }
+
+  const fields = state && !state.success ? state.fields : undefined
 
   return (
     <>
@@ -29,6 +48,7 @@ export default function SignupPage() {
             type="text"
             autoComplete="organization"
             placeholder="Green Acres Lawn Care"
+            defaultValue={fields?.businessName}
             required
           />
           {state && !state.success && state.errors?.businessName && (
@@ -44,6 +64,7 @@ export default function SignupPage() {
             type="email"
             autoComplete="email"
             placeholder="you@company.com"
+            defaultValue={fields?.email}
             required
           />
           {state && !state.success && state.errors?.email && (

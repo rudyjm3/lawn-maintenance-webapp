@@ -33,14 +33,14 @@ const ForgotPasswordSchema = z.object({
 
 export type ActionState =
   | { success: true; message?: string }
-  | { success: false; message: string; errors?: Record<string, string[]> }
+  | { success: false; message: string; errors?: Record<string, string[]>; fields?: Record<string, string> }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
 export async function login(_prev: ActionState | null, formData: FormData): Promise<ActionState> {
   const raw = {
-    email: formData.get("email"),
-    password: formData.get("password"),
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
   }
 
   const parsed = LoginSchema.safeParse(raw)
@@ -49,6 +49,7 @@ export async function login(_prev: ActionState | null, formData: FormData): Prom
       success: false,
       message: "Please fix the errors below.",
       errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+      fields: { email: raw.email },
     }
   }
 
@@ -56,7 +57,7 @@ export async function login(_prev: ActionState | null, formData: FormData): Prom
   const { error } = await supabase.auth.signInWithPassword(parsed.data)
 
   if (error) {
-    return { success: false, message: error.message }
+    return { success: false, message: error.message, fields: { email: raw.email } }
   }
 
   revalidatePath("/", "layout")
@@ -65,10 +66,13 @@ export async function login(_prev: ActionState | null, formData: FormData): Prom
 
 export async function signup(_prev: ActionState | null, formData: FormData): Promise<ActionState> {
   const raw = {
-    email: formData.get("email"),
-    password: formData.get("password"),
-    businessName: formData.get("businessName"),
+    email: formData.get("email") as string,
+    password: formData.get("password") as string,
+    businessName: formData.get("businessName") as string,
   }
+
+  // Safe fields to echo back (never echo password)
+  const safeFields = { email: raw.email, businessName: raw.businessName }
 
   const parsed = SignupSchema.safeParse(raw)
   if (!parsed.success) {
@@ -76,11 +80,12 @@ export async function signup(_prev: ActionState | null, formData: FormData): Pro
       success: false,
       message: "Please fix the errors below.",
       errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+      fields: safeFields,
     }
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
@@ -89,7 +94,16 @@ export async function signup(_prev: ActionState | null, formData: FormData): Pro
   })
 
   if (error) {
-    return { success: false, message: error.message }
+    return { success: false, message: error.message, fields: safeFields }
+  }
+
+  // No session means Supabase requires email confirmation before login.
+  // Don't redirect to onboarding — the user isn't authenticated yet.
+  if (!data.session) {
+    return {
+      success: true,
+      message: `We sent a confirmation link to ${parsed.data.email}. Click it to activate your account, then sign in.`,
+    }
   }
 
   revalidatePath("/", "layout")

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useActionState } from "react"
+import { useState, useRef, useActionState } from "react"
 import { completeOnboarding } from "@/app/actions/onboarding"
 import type { ActionState } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
@@ -46,9 +46,22 @@ const TIMEZONES = [
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function OnboardingWizard() {
+  const formRef = useRef<HTMLFormElement>(null)
   const [step, setStep] = useState(1)
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [workDays, setWorkDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri"])
+
+  // Captured when the user clicks Next so the data survives step unmounting
+  const [step1, setStep1] = useState({
+    businessName: "",
+    phone: "",
+    timezone: "America/New_York",
+    serviceRadius: "",
+  })
+  const [step3, setStep3] = useState({
+    workdayStart: "07:00",
+    workdayEnd: "17:00",
+  })
 
   const [state, formAction, pending] = useActionState<ActionState | null, FormData>(
     completeOnboarding,
@@ -67,14 +80,57 @@ export function OnboardingWizard() {
     )
   }
 
+  function handleNext() {
+    // Snapshot current step's field values before unmounting them
+    if (formRef.current) {
+      const fd = new FormData(formRef.current)
+      if (step === 1) {
+        setStep1({
+          businessName: (fd.get("businessName") as string) || "",
+          phone: (fd.get("phone") as string) || "",
+          timezone: (fd.get("timezone") as string) || "America/New_York",
+          serviceRadius: (fd.get("serviceRadius") as string) || "",
+        })
+      }
+      if (step === 3) {
+        setStep3({
+          workdayStart: (fd.get("workdayStart") as string) || "07:00",
+          workdayEnd: (fd.get("workdayEnd") as string) || "17:00",
+        })
+      }
+    }
+    setStep((s) => s + 1)
+  }
+
   const isLastStep = step === STEPS.length
 
   return (
-    // Single form — only the submit button on step 4 triggers submission.
-    // Hidden inputs carry data collected on earlier steps.
-    <form action={formAction} className="flex w-full max-w-xl flex-col gap-8">
-      {/* Hidden inputs for multi-step data */}
+    <form ref={formRef} action={formAction} className="flex w-full max-w-xl flex-col gap-8">
+
+      {/* ── Hidden inputs: carry all multi-step data on submission ── */}
+
+      {/* Step 1 data — hidden when not on step 1 so there's no duplicate name */}
+      {step !== 1 && (
+        <>
+          <input type="hidden" name="businessName"  value={step1.businessName} />
+          <input type="hidden" name="phone"         value={step1.phone} />
+          <input type="hidden" name="timezone"      value={step1.timezone} />
+          <input type="hidden" name="serviceRadius" value={step1.serviceRadius} />
+        </>
+      )}
+
+      {/* Step 2 data — always hidden (managed by React state) */}
       <input type="hidden" name="services" value={selectedServices.join(",")} />
+
+      {/* Step 3 data — hidden when not on step 3 */}
+      {step !== 3 && (
+        <>
+          <input type="hidden" name="workdayStart" value={step3.workdayStart} />
+          <input type="hidden" name="workdayEnd"   value={step3.workdayEnd} />
+        </>
+      )}
+
+      {/* Step 2 work-days data — always hidden */}
       <input type="hidden" name="workDays" value={workDays.join(",")} />
 
       {/* ── Progress bar ── */}
@@ -127,19 +183,26 @@ export function OnboardingWizard() {
               id="businessName"
               name="businessName"
               placeholder="Green Acres Lawn Care"
+              defaultValue={step1.businessName}
               required
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="phone">Business phone</Label>
-            <Input id="phone" name="phone" type="tel" placeholder="(555) 000-0000" />
+            <Input
+              id="phone"
+              name="phone"
+              type="tel"
+              placeholder="(555) 000-0000"
+              defaultValue={step1.phone}
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="timezone">Timezone *</Label>
             <select
               id="timezone"
               name="timezone"
-              defaultValue="America/New_York"
+              defaultValue={step1.timezone || "America/New_York"}
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm"
             >
               {TIMEZONES.map((tz) => (
@@ -157,6 +220,7 @@ export function OnboardingWizard() {
               type="number"
               min={1}
               placeholder="25"
+              defaultValue={step1.serviceRadius}
             />
           </div>
         </div>
@@ -207,7 +271,7 @@ export function OnboardingWizard() {
                 id="workdayStart"
                 name="workdayStart"
                 type="time"
-                defaultValue="07:00"
+                defaultValue={step3.workdayStart}
               />
             </div>
             <div className="space-y-1.5">
@@ -216,7 +280,7 @@ export function OnboardingWizard() {
                 id="workdayEnd"
                 name="workdayEnd"
                 type="time"
-                defaultValue="17:00"
+                defaultValue={step3.workdayEnd}
               />
             </div>
           </div>
@@ -315,7 +379,7 @@ export function OnboardingWizard() {
             {pending ? "Setting up your account…" : "Go to Dashboard"}
           </Button>
         ) : (
-          <Button type="button" onClick={() => setStep((s) => s + 1)}>
+          <Button type="button" onClick={handleNext}>
             Next
             <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
