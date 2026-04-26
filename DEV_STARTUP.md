@@ -45,6 +45,8 @@ code .env.local
 
 ## 3. Start the dev server
 
+From Git Bash:
+
 ```bash
 npm run dev
 ```
@@ -59,7 +61,49 @@ The terminal will show a URL you can `Ctrl+Click` to open directly.
 
 ---
 
-## 4. Other useful commands
+## 4. Stop the dev server
+
+If the dev server is running in the current terminal, press:
+
+```bash
+Ctrl+C
+```
+
+If the server is stuck in the background, Next will show the PID:
+
+```text
+Run taskkill /PID 34300 /F to stop it.
+```
+
+In Git Bash, use double slashes so Windows receives the flags correctly:
+
+```bash
+taskkill //PID 34300 //F
+```
+
+Replace `34300` with the PID shown in your terminal.
+
+You can also stop the process currently using port 3000:
+
+```bash
+npx kill-port 3000
+```
+
+---
+
+## 5. Restart the dev server
+
+Stop the existing server first, then run:
+
+```bash
+npm run dev
+```
+
+If port 3000 is still busy, Next may start on `http://localhost:3001`. Stop the process using port 3000 if you want the app back on the default URL.
+
+---
+
+## 6. Other useful commands
 
 ```bash
 # Type-check the project
