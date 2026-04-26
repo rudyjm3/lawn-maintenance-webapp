@@ -1,17 +1,26 @@
 "use client"
 
-import { useActionState } from "react"
+import { Suspense, useActionState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { login, type ActionState } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
-export default function LoginPage() {
-  const [state, action, pending] = useActionState<ActionState | null, FormData>(
-    login,
-    null,
+function UrlError() {
+  const searchParams = useSearchParams()
+  const error = searchParams.get("error")
+  if (!error) return null
+  return (
+    <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+      {error}
+    </p>
   )
+}
+
+function LoginForm() {
+  const [state, action, pending] = useActionState<ActionState | null, FormData>(login, null)
 
   return (
     <>
@@ -19,6 +28,10 @@ export default function LoginPage() {
       <p className="mb-6 text-sm text-muted-foreground">
         Welcome back — sign in to your account.
       </p>
+
+      <Suspense>
+        <UrlError />
+      </Suspense>
 
       <form action={action} className="space-y-4">
         <div className="space-y-1.5">
@@ -78,4 +91,8 @@ export default function LoginPage() {
       </p>
     </>
   )
+}
+
+export default function LoginPage() {
+  return <LoginForm />
 }

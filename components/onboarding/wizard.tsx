@@ -105,7 +105,7 @@ export function OnboardingWizard() {
   const isLastStep = step === STEPS.length
 
   return (
-    <form ref={formRef} action={formAction} className="flex w-full max-w-xl flex-col gap-8">
+    <form ref={formRef} className="flex w-full max-w-xl flex-col gap-8">
 
       {/* ── Hidden inputs: carry all multi-step data on submission ── */}
 
@@ -375,7 +375,7 @@ export function OnboardingWizard() {
         </Button>
 
         {isLastStep ? (
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" formAction={formAction} disabled={pending}>
             {pending ? "Setting up your account…" : "Go to Dashboard"}
           </Button>
         ) : (

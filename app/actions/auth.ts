@@ -29,6 +29,15 @@ const ForgotPasswordSchema = z.object({
   email: z.string().email({ message: "Enter a valid email address." }),
 })
 
+const ResetPasswordSchema = z.object({
+  password: z
+    .string()
+    .min(8, { message: "Password must be at least 8 characters." })
+    .regex(/[A-Za-z]/, { message: "Must contain at least one letter." })
+    .regex(/[0-9]/, { message: "Must contain at least one number." }),
+  confirmPassword: z.string(),
+})
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ActionState =
@@ -90,6 +99,7 @@ export async function signup(_prev: ActionState | null, formData: FormData): Pro
     password: parsed.data.password,
     options: {
       data: { business_name: parsed.data.businessName },
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/confirm?next=/onboarding`,
     },
   })
 
@@ -132,6 +142,36 @@ export async function forgotPassword(_prev: ActionState | null, formData: FormDa
   }
 
   return { success: true, message: "Check your email for a password reset link." }
+}
+
+export async function resetPassword(_prev: ActionState | null, formData: FormData): Promise<ActionState> {
+  const raw = {
+    password: formData.get("password") as string,
+    confirmPassword: formData.get("confirmPassword") as string,
+  }
+
+  const parsed = ResetPasswordSchema.safeParse(raw)
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: "Please fix the errors below.",
+      errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+    }
+  }
+
+  if (parsed.data.password !== parsed.data.confirmPassword) {
+    return { success: false, message: "Passwords do not match." }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password })
+
+  if (error) {
+    return { success: false, message: error.message }
+  }
+
+  revalidatePath("/", "layout")
+  redirect("/dashboard")
 }
 
 export async function signOut(): Promise<void> {

@@ -50,7 +50,7 @@ export type Database = {
             foreignKeyName: "activity_logs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
           {
@@ -61,6 +61,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      businesses: {
+        Row: {
+          business_name: string
+          created_at: string
+          email: string | null
+          id: string
+          phone: string | null
+          slug: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          business_name: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          phone?: string | null
+          slug: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          business_name?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          phone?: string | null
+          slug?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       clients: {
         Row: {
@@ -107,7 +140,7 @@ export type Database = {
             foreignKeyName: "clients_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -162,7 +195,7 @@ export type Database = {
             foreignKeyName: "communications_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -204,7 +237,7 @@ export type Database = {
             foreignKeyName: "crew_members_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
           {
@@ -249,7 +282,7 @@ export type Database = {
             foreignKeyName: "crews_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -310,7 +343,7 @@ export type Database = {
             foreignKeyName: "estimate_items_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -377,7 +410,7 @@ export type Database = {
             foreignKeyName: "estimates_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -435,7 +468,7 @@ export type Database = {
             foreignKeyName: "invoice_items_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -492,7 +525,7 @@ export type Database = {
             foreignKeyName: "invoices_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -569,7 +602,7 @@ export type Database = {
             foreignKeyName: "jobs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -619,7 +652,7 @@ export type Database = {
             foreignKeyName: "leads_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -670,7 +703,7 @@ export type Database = {
             foreignKeyName: "payments_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -733,7 +766,7 @@ export type Database = {
             foreignKeyName: "properties_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -791,7 +824,7 @@ export type Database = {
             foreignKeyName: "property_photos_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
           {
@@ -859,7 +892,7 @@ export type Database = {
             foreignKeyName: "property_services_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -916,7 +949,7 @@ export type Database = {
             foreignKeyName: "recurrence_rules_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -983,7 +1016,7 @@ export type Database = {
             foreignKeyName: "route_stops_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1049,7 +1082,7 @@ export type Database = {
             foreignKeyName: "routes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1097,7 +1130,7 @@ export type Database = {
             foreignKeyName: "schedule_exceptions_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1141,7 +1174,7 @@ export type Database = {
             foreignKeyName: "service_types_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1176,43 +1209,10 @@ export type Database = {
             foreignKeyName: "service_zones_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
-      }
-      tenants: {
-        Row: {
-          business_name: string
-          created_at: string
-          email: string | null
-          id: string
-          phone: string | null
-          slug: string
-          timezone: string
-          updated_at: string
-        }
-        Insert: {
-          business_name: string
-          created_at?: string
-          email?: string | null
-          id?: string
-          phone?: string | null
-          slug: string
-          timezone?: string
-          updated_at?: string
-        }
-        Update: {
-          business_name?: string
-          created_at?: string
-          email?: string | null
-          id?: string
-          phone?: string | null
-          slug?: string
-          timezone?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       time_logs: {
         Row: {
@@ -1260,7 +1260,7 @@ export type Database = {
             foreignKeyName: "time_logs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
           {
@@ -1311,7 +1311,7 @@ export type Database = {
             foreignKeyName: "users_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1356,7 +1356,7 @@ export type Database = {
             foreignKeyName: "vehicles_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1394,7 +1394,7 @@ export type Database = {
             foreignKeyName: "weather_alerts_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
-            referencedRelation: "tenants"
+            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]

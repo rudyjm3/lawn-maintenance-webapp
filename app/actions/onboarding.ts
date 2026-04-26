@@ -76,27 +76,27 @@ export async function completeOnboarding(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  // 1. Create tenant row
+  // 1. Create business row — pre-generate the UUID so we don't need
+  // .select("id").single() whose RETURNING clause would be blocked by RLS
+  // before the users row exists (auth_tenant_id() returns NULL at this point).
+  const tenantId = crypto.randomUUID()
   const baseSlug = slugify(parsed.data.businessName)
   const slug = `${baseSlug}-${Date.now().toString(36)}`
 
-  const { data: tenant, error: tenantError } = await db
-    .from("tenants")
+  const { error: tenantError } = await db
+    .from("businesses")
     .insert({
+      id: tenantId,
       business_name: parsed.data.businessName,
       slug,
       timezone: parsed.data.timezone,
       phone: parsed.data.phone || null,
       email: user.email ?? null,
     })
-    .select("id")
-    .single()
 
   if (tenantError) {
     return { success: false, message: `Failed to create account: ${tenantError.message}` }
   }
-
-  const tenantId: string = tenant.id
 
   // 2. Create user profile row
   const { error: userError } = await db.from("users").insert({
