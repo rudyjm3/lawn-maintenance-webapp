@@ -32,7 +32,7 @@ export type OptimizationStatus = "pending" | "optimized" | "manual"
 
 // ─── Core entities ────────────────────────────────────────────────────────────
 
-export interface Tenant {
+export interface Business {
   id: string
   business_name: string
   slug: string

@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
+import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { z } from "zod"
 
 export type PropertyActionState =
-  | { success: true; message: string }
+  | { success: true; message: string; geocoded: boolean }
   | { success: false; message: string }
 
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
@@ -46,38 +47,67 @@ export async function saveProperty(values: PropertyFormValues): Promise<Property
   }
 
   const supabase = await createSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: "Not authenticated." }
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
 
   const { id, ...fields } = parsed.data
-  const geo = await geocodeAddress(fields.address)
+  const address = fields.address.trim()
+  const existingProperty = id
+    ? await supabase
+        .from("properties")
+        .select("address, lat, lng")
+        .eq("id", id)
+        .eq("business_id", businessId)
+        .single()
+    : null
+  const existingAddress = existingProperty?.data?.address
+  const addressChanged = !id || existingAddress !== address
+  const geo = addressChanged ? await geocodeAddress(address) : null
 
   const row = {
     client_id: fields.client_id,
-    address: fields.address.trim(),
-    lat: geo?.lat ?? null,
-    lng: geo?.lng ?? null,
+    address,
     lawn_size: fields.lawn_size?.trim() || null,
     gate_code: fields.gate_code?.trim() || null,
     access_notes: fields.access_notes?.trim() || null,
     pet_notes: fields.pet_notes?.trim() || null,
     is_commercial: fields.is_commercial,
   }
+  const coordinateFields = geo
+    ? { lat: geo.lat, lng: geo.lng }
+    : id
+      ? {}
+      : { lat: null, lng: null }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
   if (id) {
-    const { error } = await db.from("properties").update(row).eq("id", id)
+    const { error } = await db
+      .from("properties")
+      .update({ ...row, ...coordinateFields })
+      .eq("id", id)
     if (error) return { success: false, message: error.message }
     revalidatePath("/properties")
     revalidatePath(`/clients/${fields.client_id}`)
-    return { success: true, message: "Property updated." }
+    const message = geo
+      ? "Property updated and coordinates refreshed."
+      : addressChanged
+        ? "Property updated. Existing coordinates were preserved because geocoding did not return a result."
+        : "Property updated."
+    return { success: true, message, geocoded: !!geo }
   }
 
-  const { error } = await db.from("properties").insert(row)
+  const insertRow = { ...row, ...coordinateFields, business_id: businessId }
+  const { error } = await db.from("properties").insert(insertRow)
   if (error) return { success: false, message: error.message }
   revalidatePath("/properties")
   revalidatePath(`/clients/${fields.client_id}`)
-  return { success: true, message: "Property added." }
+  return {
+    success: true,
+    message: geo
+      ? "Property added and geocoded."
+      : "Property added, but geocoding did not return coordinates.",
+    geocoded: !!geo,
+  }
 }

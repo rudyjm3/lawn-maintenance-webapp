@@ -47,7 +47,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "activity_logs_tenant_id_fkey"
+            foreignKeyName: "activity_logs_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -137,7 +137,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "clients_tenant_id_fkey"
+            foreignKeyName: "clients_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -192,7 +192,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "communications_tenant_id_fkey"
+            foreignKeyName: "communications_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -234,7 +234,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "crew_members_tenant_id_fkey"
+            foreignKeyName: "crew_members_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -279,7 +279,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "crews_tenant_id_fkey"
+            foreignKeyName: "crews_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -340,7 +340,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "estimate_items_tenant_id_fkey"
+            foreignKeyName: "estimate_items_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -407,7 +407,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "estimates_tenant_id_fkey"
+            foreignKeyName: "estimates_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -465,7 +465,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "invoice_items_tenant_id_fkey"
+            foreignKeyName: "invoice_items_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -522,7 +522,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "invoices_tenant_id_fkey"
+            foreignKeyName: "invoices_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -599,7 +599,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "jobs_tenant_id_fkey"
+            foreignKeyName: "jobs_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -649,7 +649,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "leads_tenant_id_fkey"
+            foreignKeyName: "leads_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -700,7 +700,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "payments_tenant_id_fkey"
+            foreignKeyName: "payments_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -763,7 +763,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "properties_tenant_id_fkey"
+            foreignKeyName: "properties_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -821,7 +821,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "property_photos_tenant_id_fkey"
+            foreignKeyName: "property_photos_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -889,7 +889,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "property_services_tenant_id_fkey"
+            foreignKeyName: "property_services_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -946,7 +946,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "recurrence_rules_tenant_id_fkey"
+            foreignKeyName: "recurrence_rules_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -1013,7 +1013,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "route_stops_tenant_id_fkey"
+            foreignKeyName: "route_stops_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -1079,7 +1079,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "routes_tenant_id_fkey"
+            foreignKeyName: "routes_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -1127,7 +1127,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "schedule_exceptions_tenant_id_fkey"
+            foreignKeyName: "schedule_exceptions_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -1171,7 +1171,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "service_types_tenant_id_fkey"
+            foreignKeyName: "service_types_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -1206,7 +1206,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "service_zones_tenant_id_fkey"
+            foreignKeyName: "service_zones_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -1257,7 +1257,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "time_logs_tenant_id_fkey"
+            foreignKeyName: "time_logs_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -1308,7 +1308,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "users_tenant_id_fkey"
+            foreignKeyName: "users_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -1353,7 +1353,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "vehicles_tenant_id_fkey"
+            foreignKeyName: "vehicles_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
@@ -1391,7 +1391,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "weather_alerts_tenant_id_fkey"
+            foreignKeyName: "weather_alerts_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"

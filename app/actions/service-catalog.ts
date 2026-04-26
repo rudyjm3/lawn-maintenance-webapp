@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
+import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { z } from "zod"
 
 export type ServiceCatalogActionState =
@@ -90,10 +91,8 @@ export async function saveServiceType(
   }
 
   const supabase = await createSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: "Not authenticated." }
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -113,7 +112,8 @@ export async function saveServiceType(
     return { success: true, message: `${row.name} updated.` }
   }
 
-  const { error } = await db.from("service_types").insert(row)
+  const insertRow = { ...row, business_id: businessId }
+  const { error } = await db.from("service_types").insert(insertRow)
   if (error) return { success: false, message: error.message }
   revalidatePath("/service-catalog")
   return { success: true, message: `${row.name} added.` }
@@ -159,10 +159,8 @@ export async function savePropertyService(
   }
 
   const supabase = await createSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: "Not authenticated." }
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -183,7 +181,8 @@ export async function savePropertyService(
     return { success: true, message: "Service assignment updated." }
   }
 
-  const { error } = await db.from("property_services").insert(row)
+  const insertRow = { ...row, business_id: businessId }
+  const { error } = await db.from("property_services").insert(insertRow)
   if (error) return { success: false, message: error.message }
   revalidatePath(`/clients/${client_id}`)
   return { success: true, message: "Service assigned to property." }
@@ -218,10 +217,8 @@ export async function saveRecurrenceRule(
   }
 
   const supabase = await createSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: "Not authenticated." }
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -243,7 +240,8 @@ export async function saveRecurrenceRule(
     return { success: true, message: "Schedule updated." }
   }
 
-  const { error } = await db.from("recurrence_rules").insert(row)
+  const insertRow = { ...row, business_id: businessId }
+  const { error } = await db.from("recurrence_rules").insert(insertRow)
   if (error) return { success: false, message: error.message }
   revalidatePath(`/clients/${client_id}`)
   return { success: true, message: "Schedule saved." }
@@ -260,10 +258,8 @@ export async function saveScheduleException(
   }
 
   const supabase = await createSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: "Not authenticated." }
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -283,7 +279,8 @@ export async function saveScheduleException(
     return { success: true, message: "Exception updated." }
   }
 
-  const { error } = await db.from("schedule_exceptions").insert(row)
+  const insertRow = { ...row, business_id: businessId }
+  const { error } = await db.from("schedule_exceptions").insert(insertRow)
   if (error) return { success: false, message: error.message }
   revalidatePath(`/clients/${client_id}`)
   return { success: true, message: "Exception saved." }
