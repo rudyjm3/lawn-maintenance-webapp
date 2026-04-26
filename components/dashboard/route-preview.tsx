@@ -3,10 +3,30 @@ import { MapPin, CheckCircle2, Clock, Circle } from "lucide-react"
 import type { Route, RouteStop, Job } from "@/types"
 
 interface RoutePreviewProps {
-  route: Route & { stops: (RouteStop & { job: Job })[] }
+  route: (Route & { stops: (RouteStop & { job: Job })[] }) | null
 }
 
 export function RoutePreview({ route }: RoutePreviewProps) {
+  if (!route) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="mb-4 flex items-start justify-between">
+          <h3 className="text-sm font-semibold text-foreground">Today&apos;s Route</h3>
+          <span className="rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+            Not built
+          </span>
+        </div>
+        <div className="flex min-h-36 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 text-center">
+          <MapPin className="mb-2 h-5 w-5 text-muted-foreground/60" />
+          <p className="text-sm font-medium text-foreground">No route for today</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Routes will appear here after jobs are scheduled and assigned.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const preview = route.stops.slice(0, 5)
   const totalH = Math.floor(route.total_job_min / 60)
   const totalM = route.total_job_min % 60
@@ -30,7 +50,7 @@ export function RoutePreview({ route }: RoutePreviewProps) {
 
       {/* Stop list */}
       <ol className="space-y-2.5">
-        {preview.map((stop, i) => {
+        {preview.map((stop) => {
           const isDone = stop.status === "completed"
           const isActive = stop.status === "in_progress"
           return (

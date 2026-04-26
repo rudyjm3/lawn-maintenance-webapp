@@ -32,7 +32,7 @@ export type OptimizationStatus = "pending" | "optimized" | "manual"
 
 // ─── Core entities ────────────────────────────────────────────────────────────
 
-export interface Tenant {
+export interface Business {
   id: string
   business_name: string
   slug: string
@@ -43,7 +43,7 @@ export interface Tenant {
 
 export interface User {
   id: string
-  tenant_id: string
+  business_id: string
   auth_user_id: string
   first_name: string
   last_name: string
@@ -53,7 +53,7 @@ export interface User {
 
 export interface Client {
   id: string
-  tenant_id: string
+  business_id: string
   name: string
   email: string | null
   phone: string | null
@@ -66,7 +66,7 @@ export interface Client {
 
 export interface Property {
   id: string
-  tenant_id: string
+  business_id: string
   client_id: string
   address: string
   lat: number | null
@@ -82,7 +82,7 @@ export interface Property {
 
 export interface ServiceType {
   id: string
-  tenant_id: string
+  business_id: string
   name: string
   default_duration_min: number
   default_price: number
@@ -90,9 +90,52 @@ export interface ServiceType {
   is_seasonal: boolean
 }
 
+export interface PropertyService {
+  id: string
+  business_id: string
+  property_id: string
+  service_type_id: string
+  custom_price: number | null
+  duration_min: number | null
+  instructions: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  // Joined
+  service_type?: ServiceType
+  recurrence_rules?: RecurrenceRule[]
+}
+
+export interface RecurrenceRule {
+  id: string
+  business_id: string
+  property_service_id: string
+  frequency_type: FrequencyType
+  interval: number
+  day_of_week: number | null
+  start_date: string
+  end_date: string | null
+  active_months: number[] | null
+  created_at: string
+  updated_at: string
+  // Joined
+  exceptions?: ScheduleException[]
+}
+
+export interface ScheduleException {
+  id: string
+  business_id: string
+  recurrence_rule_id: string
+  original_date: string
+  exception_type: "skip" | "reschedule" | "cancel"
+  new_date: string | null
+  reason: string | null
+  created_at: string
+}
+
 export interface Job {
   id: string
-  tenant_id: string
+  business_id: string
   client_id: string
   property_id: string
   property_service_id: string | null
@@ -112,7 +155,7 @@ export interface Job {
 
 export interface Crew {
   id: string
-  tenant_id: string
+  business_id: string
   name: string
   description: string | null
   is_active: boolean
@@ -122,7 +165,7 @@ export interface Crew {
 
 export interface Vehicle {
   id: string
-  tenant_id: string
+  business_id: string
   crew_id: string
   name: string
   plate: string | null
@@ -131,7 +174,7 @@ export interface Vehicle {
 
 export interface Route {
   id: string
-  tenant_id: string
+  business_id: string
   crew_id: string
   route_date: string   // ISO date "YYYY-MM-DD"
   start_lat: number | null
@@ -149,7 +192,7 @@ export interface Route {
 
 export interface RouteStop {
   id: string
-  tenant_id: string
+  business_id: string
   route_id: string
   job_id: string
   stop_order: number
@@ -165,7 +208,7 @@ export interface RouteStop {
 
 export interface ServiceZone {
   id: string
-  tenant_id: string
+  business_id: string
   name: string
   color: string
   description: string | null
@@ -173,7 +216,7 @@ export interface ServiceZone {
 
 export interface Lead {
   id: string
-  tenant_id: string
+  business_id: string
   name: string
   email: string | null
   phone: string | null
@@ -186,7 +229,7 @@ export interface Lead {
 
 export interface Invoice {
   id: string
-  tenant_id: string
+  business_id: string
   client_id: string
   invoice_number: string
   status: InvoiceStatus

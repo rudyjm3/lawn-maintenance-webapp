@@ -78,7 +78,7 @@ export async function completeOnboarding(
 
   // 1. Create business row — pre-generate the UUID so we don't need
   // .select("id").single() whose RETURNING clause would be blocked by RLS
-  // before the users row exists (auth_tenant_id() returns NULL at this point).
+  // before the users row exists (auth_business_id() returns NULL at this point).
   const tenantId = crypto.randomUUID()
   const baseSlug = slugify(parsed.data.businessName)
   const slug = `${baseSlug}-${Date.now().toString(36)}`
@@ -100,7 +100,7 @@ export async function completeOnboarding(
 
   // 2. Create user profile row
   const { error: userError } = await db.from("users").insert({
-    tenant_id: tenantId,
+    business_id: tenantId,
     auth_user_id: user.id,
     first_name: user.user_metadata?.first_name ?? "",
     last_name: user.user_metadata?.last_name ?? "",
@@ -112,10 +112,10 @@ export async function completeOnboarding(
     return { success: false, message: `Failed to create user profile: ${userError.message}` }
   }
 
-  // 3. Store tenant_id in auth user metadata so the JWT carries it for RLS
+  // 3. Store business_id in auth user metadata so the JWT carries it for RLS
   await supabase.auth.updateUser({
     data: {
-      tenant_id: tenantId,
+      business_id: tenantId,
       business_name: parsed.data.businessName,
       phone: parsed.data.phone,
       timezone: parsed.data.timezone,
@@ -124,7 +124,7 @@ export async function completeOnboarding(
   })
 
   // 4. Seed default service types for this tenant
-  const serviceRows = SERVICE_TEMPLATES.map((t) => ({ ...t, tenant_id: tenantId }))
+  const serviceRows = SERVICE_TEMPLATES.map((t) => ({ ...t, business_id: tenantId }))
   await db.from("service_types").insert(serviceRows)
 
   // 5. If a first client was provided, create them
@@ -134,7 +134,7 @@ export async function completeOnboarding(
 
   if (clientName) {
     await db.from("clients").insert({
-      tenant_id: tenantId,
+      business_id: tenantId,
       name: clientName,
       email: parsed.data.clientEmail || null,
       phone: parsed.data.clientPhone || null,

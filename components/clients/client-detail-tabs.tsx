@@ -21,7 +21,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AddPropertySheet } from "@/components/properties/add-property-sheet"
-import { type Client, type Property, type Job } from "@/types"
+import { PropertyServicesPanel } from "@/components/service-catalog/property-services-panel"
+import { type Client, type Property, type Job, type ServiceType, type PropertyService } from "@/types"
 import { cn } from "@/lib/utils"
 
 // ─── Job status display ────────────────────────────────────────────────────────
@@ -192,12 +193,17 @@ function OverviewTab({
 function PropertiesTab({
   properties,
   client,
+  serviceTypes,
+  propertyServices,
 }: {
   properties: Property[]
   client: Client
+  serviceTypes: ServiceType[]
+  propertyServices: PropertyService[]
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<Property | undefined>(undefined)
+  const [expandedPropertyId, setExpandedPropertyId] = useState<string | null>(null)
 
   return (
     <>
@@ -222,76 +228,104 @@ function PropertiesTab({
             </p>
           </div>
         ) : (
-          properties.map((p) => (
-            <div
-              key={p.id}
-              className="group rounded-xl border border-border bg-card p-5 space-y-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2.5">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium text-sm text-foreground">
-                      {p.address}
-                    </p>
-                    <div className="mt-1 flex items-center gap-2">
-                      {p.is_commercial ? (
-                        <Badge
-                          variant="outline"
-                          className="text-xs bg-violet-100 text-violet-700 border-transparent dark:bg-violet-950/50 dark:text-violet-400"
-                        >
-                          Commercial
-                        </Badge>
-                      ) : (
-                        <Badge
-                          variant="outline"
-                          className="text-xs bg-emerald-100 text-emerald-700 border-transparent dark:bg-emerald-950/50 dark:text-emerald-400"
-                        >
-                          Residential
-                        </Badge>
-                      )}
-                      {p.lawn_size && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Ruler className="h-3 w-3" />
-                          {p.lawn_size}
-                        </span>
-                      )}
+          properties.map((p) => {
+            const isExpanded = expandedPropertyId === p.id
+            const serviceCount = propertyServices.filter((ps) => ps.property_id === p.id).length
+            return (
+              <div
+                key={p.id}
+                className="group rounded-xl border border-border bg-card p-5 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium text-sm text-foreground">
+                        {p.address}
+                      </p>
+                      <div className="mt-1 flex items-center gap-2">
+                        {p.is_commercial ? (
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-violet-100 text-violet-700 border-transparent dark:bg-violet-950/50 dark:text-violet-400"
+                          >
+                            Commercial
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-emerald-100 text-emerald-700 border-transparent dark:bg-emerald-950/50 dark:text-emerald-400"
+                          >
+                            Residential
+                          </Badge>
+                        )}
+                        {p.lawn_size && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Ruler className="h-3 w-3" />
+                            {p.lawn_size}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  <button
+                    onClick={() => { setEditingProperty(p); setSheetOpen(true) }}
+                    className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition-all"
+                    aria-label="Edit property"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => { setEditingProperty(p); setSheetOpen(true) }}
-                  className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition-all"
-                  aria-label="Edit property"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-              </div>
 
-              {(p.gate_code || p.access_notes || p.pet_notes) && (
-                <div className="flex flex-wrap gap-3 border-t border-border pt-3">
-                  {p.gate_code && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <KeyRound className="h-3.5 w-3.5" />
-                      Gate: <span className="font-mono font-semibold text-foreground">{p.gate_code}</span>
-                    </div>
-                  )}
-                  {p.access_notes && (
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <FileText className="h-3.5 w-3.5" />
-                      {p.access_notes}
-                    </div>
-                  )}
-                  {p.pet_notes && (
-                    <div className="flex items-center gap-1.5 text-xs text-amber-600">
-                      <PawPrint className="h-3.5 w-3.5" />
-                      {p.pet_notes}
-                    </div>
-                  )}
+                {(p.gate_code || p.access_notes || p.pet_notes) && (
+                  <div className="flex flex-wrap gap-3 border-t border-border pt-3">
+                    {p.gate_code && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <KeyRound className="h-3.5 w-3.5" />
+                        Gate: <span className="font-mono font-semibold text-foreground">{p.gate_code}</span>
+                      </div>
+                    )}
+                    {p.access_notes && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <FileText className="h-3.5 w-3.5" />
+                        {p.access_notes}
+                      </div>
+                    )}
+                    {p.pet_notes && (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                        <PawPrint className="h-3.5 w-3.5" />
+                        {p.pet_notes}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Services section */}
+                <div className="flex items-center justify-between border-t border-border pt-3">
+                  <span className="text-xs text-muted-foreground">
+                    {serviceCount > 0 ? `${serviceCount} service${serviceCount !== 1 ? "s" : ""}` : "No services"}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setExpandedPropertyId(isExpanded ? null : p.id)}
+                  >
+                    {isExpanded ? "Hide" : "Manage Services"}
+                  </Button>
                 </div>
-              )}
-            </div>
-          ))
+
+                {isExpanded && (
+                  <PropertyServicesPanel
+                    propertyId={p.id}
+                    clientId={client.id}
+                    propertyServices={propertyServices}
+                    serviceTypes={serviceTypes}
+                  />
+                )}
+              </div>
+            )
+          })
         )}
       </div>
 
@@ -433,12 +467,16 @@ interface ClientDetailTabsProps {
   client: Client
   properties: Property[]
   jobs: Job[]
+  serviceTypes: ServiceType[]
+  propertyServices: PropertyService[]
 }
 
 export function ClientDetailTabs({
   client,
   properties,
   jobs,
+  serviceTypes,
+  propertyServices,
 }: ClientDetailTabsProps) {
   return (
     <Tabs defaultValue="overview" className="space-y-5">
@@ -463,7 +501,12 @@ export function ClientDetailTabs({
         <OverviewTab client={client} properties={properties} jobs={jobs} />
       </TabsContent>
       <TabsContent value="properties">
-        <PropertiesTab properties={properties} client={client} />
+        <PropertiesTab
+          properties={properties}
+          client={client}
+          serviceTypes={serviceTypes}
+          propertyServices={propertyServices}
+        />
       </TabsContent>
       <TabsContent value="history">
         <JobHistoryTab jobs={jobs} />

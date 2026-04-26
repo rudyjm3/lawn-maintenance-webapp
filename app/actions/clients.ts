@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
+import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { z } from "zod"
 
 export type ClientActionState =
@@ -28,8 +29,8 @@ export async function saveClient(values: ClientFormValues): Promise<ClientAction
   }
 
   const supabase = await createSupabaseClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: "Not authenticated." }
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
 
   const { id, ...fields } = parsed.data
   const row = {
@@ -53,7 +54,8 @@ export async function saveClient(values: ClientFormValues): Promise<ClientAction
     return { success: true, message: `${row.name} updated.` }
   }
 
-  const { error } = await db.from("clients").insert(row)
+  const insertRow = { ...row, business_id: businessId }
+  const { error } = await db.from("clients").insert(insertRow)
   if (error) return { success: false, message: error.message }
   revalidatePath("/clients")
   return { success: true, message: `${row.name} added as a client.` }

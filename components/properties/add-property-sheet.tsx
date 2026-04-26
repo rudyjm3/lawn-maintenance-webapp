@@ -119,7 +119,7 @@ export function AddPropertySheet({
           <SheetTitle>{isEditing ? "Edit Property" : "Add Property"}</SheetTitle>
           <SheetDescription>
             {isEditing
-              ? "Update this property. The address will be re-geocoded on save."
+              ? "Update this property. Address changes will refresh coordinates when geocoding succeeds."
               : "Add a service address for a client. The address will be geocoded on save."}
           </SheetDescription>
         </SheetHeader>

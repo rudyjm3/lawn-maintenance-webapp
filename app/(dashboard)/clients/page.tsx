@@ -1,16 +1,24 @@
+import { createClient } from "@/lib/supabase/server"
 import { ClientsTable } from "@/components/clients/clients-table"
-import { mockClients, mockProperties } from "@/lib/mock-data"
+import type { Client, Property } from "@/types"
 
 export const metadata = { title: "Clients" }
 
-export default function ClientsPage() {
-  // TODO: Replace with real Supabase queries
-  const clients = mockClients
-  const properties = mockProperties
+export default async function ClientsPage() {
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  const [clientsResult, propertiesResult] = await Promise.all([
+    db.from("clients").select("*").order("name"),
+    db.from("properties").select("id, client_id"),
+  ])
+
+  const clients = (clientsResult.data ?? []) as Client[]
+  const properties = (propertiesResult.data ?? []) as Property[]
 
   return (
     <div className="space-y-5">
-      {/* ── Page header ── */}
       <div>
         <h1 className="text-xl font-semibold text-foreground">Clients</h1>
         <p className="text-sm text-muted-foreground">
@@ -18,7 +26,6 @@ export default function ClientsPage() {
         </p>
       </div>
 
-      {/* ── Table with search/filter/add ── */}
       <ClientsTable clients={clients} properties={properties} />
     </div>
   )

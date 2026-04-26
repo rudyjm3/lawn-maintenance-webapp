@@ -11,7 +11,7 @@ export default function SchedulePage() {
   //   .select("*, client(*), property(*), service_type(*), crew(*)")
   //   .gte("service_date", weekStart)
   //   .lte("service_date", weekEnd)
-  //   .eq("tenant_id", tenantId)
+  //   .eq("business_id", tenantId)
 
   const weekDays = getMockWeekSnapshot()
   const unscheduled = mockJobs.filter((j) => j.status === "unscheduled")

@@ -1,13 +1,12 @@
 import Link from "next/link"
 import {
-  ClipboardList,
-  Clock,
-  Gauge,
-  Megaphone,
   AlertTriangle,
+  Building2,
   CalendarX2,
-  Receipt,
+  ClipboardList,
   Map,
+  PackageCheck,
+  Receipt,
   Users,
 } from "lucide-react"
 import { KpiCard } from "@/components/dashboard/kpi-card"
@@ -15,38 +14,171 @@ import { WeekSnapshot } from "@/components/dashboard/week-snapshot"
 import { RoutePreview } from "@/components/dashboard/route-preview"
 import { ActivityFeed } from "@/components/dashboard/activity-feed"
 import { Button } from "@/components/ui/button"
-import {
-  getMockDashboardKPIs,
-  getMockWeekSnapshot,
-  getMockActivity,
-  getMockTodayRoute,
-  mockOverdueInvoices,
-  mockLeads,
-  mockJobs,
-} from "@/lib/mock-data"
+import { createClient } from "@/lib/supabase/server"
+import type { ActivityItem, Job, Route, RouteStop, WeekDaySnapshot } from "@/types"
 
 export const metadata = { title: "Dashboard" }
 
-export default function DashboardPage() {
-  // TODO: Replace with real Supabase queries once schema is applied
-  const kpis = getMockDashboardKPIs()
-  const week = getMockWeekSnapshot()
-  const activity = getMockActivity()
-  const todayRoute = getMockTodayRoute()
+const CAPACITY_MINUTES = 480
 
-  const overbookedDays = week.filter((d) => d.isOverbooked)
-  const unassignedCount = mockJobs.filter((j) => j.status === "unscheduled").length
-  const overdueCount = mockOverdueInvoices.length
-  const newLeadsCount = mockLeads.filter((l) => l.status === "new").length
+type JobRow = Job & {
+  client?: { name: string | null } | null
+  property?: { address: string | null } | null
+}
 
-  const capacityPct = Math.min(
-    100,
-    Math.round(((kpis.hoursBookedToday * 60) / kpis.capacityMinutesToday) * 100),
-  )
+type TodayRoute = Route & {
+  crew?: { name: string | null } | null
+  stops: (RouteStop & { job: JobRow })[]
+}
+
+type RecentClient = {
+  id: string
+  name: string
+  created_at: string
+}
+
+function isoDate(base: Date, offsetDays: number): string {
+  const d = new Date(base)
+  d.setDate(d.getDate() + offsetDays)
+  return d.toISOString().slice(0, 10)
+}
+
+function getWeekStart(date: Date): Date {
+  const d = new Date(date)
+  const day = d.getDay()
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function buildWeekSnapshot(jobs: JobRow[], weekStart: Date): WeekDaySnapshot[] {
+  const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const today = new Date().toISOString().slice(0, 10)
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = isoDate(weekStart, index)
+    const dayJobs = jobs.filter((job) => job.service_date === date && job.status !== "cancelled")
+    const scheduledMinutes = dayJobs.reduce((sum, job) => sum + job.estimated_duration_min, 0)
+    const d = new Date(`${date}T12:00:00`)
+
+    return {
+      date,
+      label: labels[d.getDay()],
+      isToday: date === today,
+      jobCount: dayJobs.length,
+      scheduledMinutes,
+      capacityMinutes: CAPACITY_MINUTES,
+      isOverbooked: scheduledMinutes > CAPACITY_MINUTES,
+      jobs: dayJobs,
+    }
+  })
+}
+
+function buildActivity(clients: RecentClient[]): ActivityItem[] {
+  return clients.slice(0, 6).map((client) => ({
+    id: client.id,
+    type: "client_added",
+    description: `Client added: ${client.name}`,
+    timestamp: client.created_at,
+  }))
+}
+
+export default async function DashboardPage() {
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  const today = new Date().toISOString().slice(0, 10)
+  const weekStart = getWeekStart(new Date())
+  const weekEnd = isoDate(weekStart, 6)
+
+  const [
+    clientsCountResult,
+    propertiesCountResult,
+    servicesCountResult,
+    leadsCountResult,
+    invoicesCountResult,
+    todayJobsResult,
+    weekJobsResult,
+    unscheduledJobsResult,
+    todayRouteResult,
+    recentClientsResult,
+  ] = await Promise.all([
+    db.from("clients").select("id", { count: "exact", head: true }),
+    db.from("properties").select("id", { count: "exact", head: true }),
+    db.from("service_types").select("id", { count: "exact", head: true }),
+    db
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .not("status", "in", '("won","lost")'),
+    db
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "overdue"),
+    db
+      .from("jobs")
+      .select("*, client:clients(name), property:properties(address)")
+      .eq("service_date", today)
+      .neq("status", "cancelled"),
+    db
+      .from("jobs")
+      .select("*, client:clients(name), property:properties(address)")
+      .gte("service_date", weekStart.toISOString().slice(0, 10))
+      .lte("service_date", weekEnd)
+      .neq("status", "cancelled"),
+    db
+      .from("jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "unscheduled"),
+    db
+      .from("routes")
+      .select(`
+        *,
+        crew:crews(name),
+        stops:route_stops(
+          *,
+          job:jobs(
+            *,
+            client:clients(name),
+            property:properties(address)
+          )
+        )
+      `)
+      .eq("route_date", today)
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from("clients")
+      .select("id, name, created_at")
+      .order("created_at", { ascending: false })
+      .limit(6),
+  ])
+
+  const clientsCount = clientsCountResult.count ?? 0
+  const propertiesCount = propertiesCountResult.count ?? 0
+  const servicesCount = servicesCountResult.count ?? 0
+  const openLeadsCount = leadsCountResult.count ?? 0
+  const overdueCount = invoicesCountResult.count ?? 0
+  const todayJobs = (todayJobsResult.data ?? []) as JobRow[]
+  const weekJobs = (weekJobsResult.data ?? []) as JobRow[]
+  const unassignedCount = unscheduledJobsResult.count ?? 0
+  const todayRoute = todayRouteResult.data
+    ? ({
+        ...todayRouteResult.data,
+        stops: [...(todayRouteResult.data.stops ?? [])].sort(
+          (a, b) => a.stop_order - b.stop_order,
+        ),
+      } as TodayRoute)
+    : null
+  const recentClients = (recentClientsResult.data ?? []) as RecentClient[]
+
+  const week = buildWeekSnapshot(weekJobs, weekStart)
+  const activity = buildActivity(recentClients)
+  const overbookedDays = week.filter((day) => day.isOverbooked)
+  const todaysCompleted = todayJobs.filter((job) => job.status === "completed").length
 
   return (
     <div className="space-y-6">
-      {/* ── Page header ── */}
       <div>
         <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground">
@@ -58,36 +190,34 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* ── Row 1: KPI cards ── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard
+          title="Clients"
+          value={clientsCount}
+          sub={`${propertiesCount} propert${propertiesCount === 1 ? "y" : "ies"}`}
+          icon={Users}
+        />
+        <KpiCard
+          title="Properties"
+          value={propertiesCount}
+          sub="Service locations"
+          icon={Building2}
+        />
+        <KpiCard
+          title="Service Types"
+          value={servicesCount}
+          sub="Catalog items"
+          icon={PackageCheck}
+        />
+        <KpiCard
           title="Today's Jobs"
-          value={kpis.todaysJobsCount}
-          sub={`${kpis.todaysJobsCompleted} completed`}
+          value={todayJobs.length}
+          sub={`${todaysCompleted} completed`}
           icon={ClipboardList}
-        />
-        <KpiCard
-          title="Hours Booked"
-          value={`${kpis.hoursBookedToday}h`}
-          sub={`${capacityPct}% of daily capacity`}
-          icon={Clock}
-        />
-        <KpiCard
-          title="Capacity Left"
-          value={`${Math.max(0, Math.round(((kpis.capacityMinutesToday - kpis.hoursBookedToday * 60) / 60) * 10) / 10)}h`}
-          sub={`of ${kpis.capacityMinutesToday / 60}h total`}
-          icon={Gauge}
-        />
-        <KpiCard
-          title="Open Leads"
-          value={kpis.openLeadsCount}
-          sub={`${newLeadsCount} new today`}
-          icon={Megaphone}
         />
       </div>
 
-      {/* ── Row 2: Alert strip ── */}
-      {(overbookedDays.length > 0 || unassignedCount > 0 || overdueCount > 0) && (
+      {(overbookedDays.length > 0 || unassignedCount > 0 || overdueCount > 0 || openLeadsCount > 0) && (
         <div className="flex flex-col gap-3 sm:flex-row">
           {overbookedDays.length > 0 && (
             <AlertCard
@@ -113,10 +243,17 @@ export default function DashboardPage() {
               action={{ label: "View Invoices", href: "/invoices" }}
             />
           )}
+          {openLeadsCount > 0 && (
+            <AlertCard
+              icon={Users}
+              colorClass="text-blue-600 bg-blue-50 dark:bg-blue-950/40"
+              label={`${openLeadsCount} open lead${openLeadsCount > 1 ? "s" : ""}`}
+              action={{ label: "View Leads", href: "/leads" }}
+            />
+          )}
         </div>
       )}
 
-      {/* ── Row 3: Route preview + Week snapshot ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <RoutePreview route={todayRoute} />
@@ -126,7 +263,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Row 4: Activity + Quick actions ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">
           <ActivityFeed items={activity} />
@@ -138,8 +274,6 @@ export default function DashboardPage() {
     </div>
   )
 }
-
-// ─── Inline sub-components ────────────────────────────────────────────────────
 
 function AlertCard({
   icon: Icon,
@@ -161,7 +295,7 @@ function AlertCard({
         <span className="text-sm font-medium text-foreground">{label}</span>
       </div>
       <Link href={action.href} className="shrink-0 text-xs font-medium text-primary hover:underline">
-        {action.label} →
+        {action.label} -&gt;
       </Link>
     </div>
   )

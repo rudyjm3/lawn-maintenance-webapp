@@ -32,6 +32,14 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <h3 className="mb-4 text-sm font-semibold text-foreground">Recent Activity</h3>
+      {items.length === 0 ? (
+        <div className="flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 text-center">
+          <p className="text-sm font-medium text-foreground">No recent activity yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Client, job, lead, and invoice activity will appear here.
+          </p>
+        </div>
+      ) : (
       <ul className="space-y-3">
         {items.map((item) => {
           const { icon: Icon, color } = ICON_MAP[item.type]
@@ -48,6 +56,7 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
           )
         })}
       </ul>
+      )}
     </div>
   )
 }
