@@ -11,7 +11,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { ClientStatusBadge } from "@/components/clients/client-status-badge"
 import { ClientDetailTabs } from "@/components/clients/client-detail-tabs"
-import { mockClients, mockProperties, mockJobs } from "@/lib/mock-data"
+import { createClient } from "@/lib/supabase/server"
+import type { Client, Property, Job, ServiceType, PropertyService } from "@/types"
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -19,19 +20,48 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params
-  const client = mockClients.find((c) => c.id === id)
-  return { title: client?.name ?? "Client" }
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { data } = await db.from("clients").select("name").eq("id", id).single()
+  return { title: data?.name ?? "Client" }
 }
 
 export default async function ClientDetailPage({ params }: PageProps) {
   const { id } = await params
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
 
-  // TODO: Replace with real Supabase queries
-  const client = mockClients.find((c) => c.id === id)
+  const { data: client } = await db.from("clients").select("*").eq("id", id).single()
   if (!client) notFound()
 
-  const properties = mockProperties.filter((p) => p.client_id === id)
-  const jobs = mockJobs.filter((j) => j.client_id === id)
+  const { data: properties } = await db
+    .from("properties")
+    .select("*")
+    .eq("client_id", id)
+    .order("address")
+
+  const propertyIds = ((properties ?? []) as Property[]).map((p) => p.id)
+
+  const [jobsResult, serviceTypesResult, propertyServicesResult] = await Promise.all([
+    db
+      .from("jobs")
+      .select("*, service_type:service_types(*), property:properties(*)")
+      .eq("client_id", id)
+      .order("service_date", { ascending: false }),
+    db.from("service_types").select("*").order("name"),
+    propertyIds.length > 0
+      ? db
+          .from("property_services")
+          .select("*, service_type:service_types(*), recurrence_rules(*, schedule_exceptions(*))")
+          .in("property_id", propertyIds)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const jobs = (jobsResult.data ?? []) as Job[]
+  const serviceTypes = (serviceTypesResult.data ?? []) as ServiceType[]
+  const propertyServices = (propertyServicesResult.data ?? []) as PropertyService[]
 
   return (
     <div className="space-y-6">
@@ -51,27 +81,28 @@ export default async function ClientDetailPage({ params }: PageProps) {
           <div className="space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-xl font-semibold text-foreground">
-                {client.name}
+                {(client as Client).name}
               </h1>
-              <ClientStatusBadge status={client.status} />
+              <ClientStatusBadge status={(client as Client).status} />
             </div>
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-              {client.phone && (
+              {(client as Client).phone && (
                 <span className="flex items-center gap-1.5">
                   <Phone className="h-3.5 w-3.5" />
-                  {client.phone}
+                  {(client as Client).phone}
                 </span>
               )}
-              {client.email && (
+              {(client as Client).email && (
                 <span className="flex items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5" />
-                  {client.email}
+                  {(client as Client).email}
                 </span>
               )}
-              {properties.length > 0 && (
+              {(properties ?? []).length > 0 && (
                 <span className="flex items-center gap-1.5">
                   <Building2 className="h-3.5 w-3.5" />
-                  {properties.length} propert{properties.length !== 1 ? "ies" : "y"}
+                  {(properties ?? []).length} propert
+                  {(properties ?? []).length !== 1 ? "ies" : "y"}
                 </span>
               )}
             </div>
@@ -79,17 +110,17 @@ export default async function ClientDetailPage({ params }: PageProps) {
 
           {/* Right: action buttons */}
           <div className="flex flex-wrap gap-2 shrink-0">
-            {client.phone && (
+            {(client as Client).phone && (
               <Button variant="outline" size="sm" asChild>
-                <a href={`tel:${client.phone}`}>
+                <a href={`tel:${(client as Client).phone}`}>
                   <Phone className="mr-1.5 h-3.5 w-3.5" />
                   Call
                 </a>
               </Button>
             )}
-            {client.email && (
+            {(client as Client).email && (
               <Button variant="outline" size="sm" asChild>
-                <a href={`mailto:${client.email}`}>
+                <a href={`mailto:${(client as Client).email}`}>
                   <Mail className="mr-1.5 h-3.5 w-3.5" />
                   Email
                 </a>
@@ -112,7 +143,13 @@ export default async function ClientDetailPage({ params }: PageProps) {
       </div>
 
       {/* ── Tabbed detail ── */}
-      <ClientDetailTabs client={client} properties={properties} jobs={jobs} />
+      <ClientDetailTabs
+        client={client as Client}
+        properties={(properties ?? []) as Property[]}
+        jobs={jobs}
+        serviceTypes={serviceTypes}
+        propertyServices={propertyServices}
+      />
     </div>
   )
 }
