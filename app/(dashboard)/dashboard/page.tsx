@@ -15,7 +15,7 @@ import { RoutePreview } from "@/components/dashboard/route-preview"
 import { ActivityFeed } from "@/components/dashboard/activity-feed"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/server"
-import type { ActivityItem, Job, WeekDaySnapshot } from "@/types"
+import type { ActivityItem, Job, Route, RouteStop, WeekDaySnapshot } from "@/types"
 
 export const metadata = { title: "Dashboard" }
 
@@ -24,6 +24,11 @@ const CAPACITY_MINUTES = 480
 type JobRow = Job & {
   client?: { name: string | null } | null
   property?: { address: string | null } | null
+}
+
+type TodayRoute = Route & {
+  crew?: { name: string | null } | null
+  stops: (RouteStop & { job: JobRow })[]
 }
 
 type RecentClient = {
@@ -95,6 +100,8 @@ export default async function DashboardPage() {
     invoicesCountResult,
     todayJobsResult,
     weekJobsResult,
+    unscheduledJobsResult,
+    todayRouteResult,
     recentClientsResult,
   ] = await Promise.all([
     db.from("clients").select("id", { count: "exact", head: true }),
@@ -120,6 +127,27 @@ export default async function DashboardPage() {
       .lte("service_date", weekEnd)
       .neq("status", "cancelled"),
     db
+      .from("jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "unscheduled"),
+    db
+      .from("routes")
+      .select(`
+        *,
+        crew:crews(name),
+        stops:route_stops(
+          *,
+          job:jobs(
+            *,
+            client:clients(name),
+            property:properties(address)
+          )
+        )
+      `)
+      .eq("route_date", today)
+      .limit(1)
+      .maybeSingle(),
+    db
       .from("clients")
       .select("id, name, created_at")
       .order("created_at", { ascending: false })
@@ -133,12 +161,20 @@ export default async function DashboardPage() {
   const overdueCount = invoicesCountResult.count ?? 0
   const todayJobs = (todayJobsResult.data ?? []) as JobRow[]
   const weekJobs = (weekJobsResult.data ?? []) as JobRow[]
+  const unassignedCount = unscheduledJobsResult.count ?? 0
+  const todayRoute = todayRouteResult.data
+    ? ({
+        ...todayRouteResult.data,
+        stops: [...(todayRouteResult.data.stops ?? [])].sort(
+          (a, b) => a.stop_order - b.stop_order,
+        ),
+      } as TodayRoute)
+    : null
   const recentClients = (recentClientsResult.data ?? []) as RecentClient[]
 
   const week = buildWeekSnapshot(weekJobs, weekStart)
   const activity = buildActivity(recentClients)
   const overbookedDays = week.filter((day) => day.isOverbooked)
-  const unassignedCount = weekJobs.filter((job) => job.status === "unscheduled").length
   const todaysCompleted = todayJobs.filter((job) => job.status === "completed").length
 
   return (
@@ -220,7 +256,7 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">
-          <RoutePreview route={null} />
+          <RoutePreview route={todayRoute} />
         </div>
         <div className="lg:col-span-2">
           <WeekSnapshot days={week} />

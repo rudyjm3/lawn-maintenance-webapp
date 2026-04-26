@@ -34,6 +34,17 @@ const EXCEPTION_TYPE_CONFIG = {
   cancel: { label: "Cancel", className: "bg-red-100 text-red-700 border-transparent dark:bg-red-950/50 dark:text-red-400" },
 }
 
+function formatUTCDate(isoDate: string, options: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat("en-US", {
+    ...options,
+    timeZone: "UTC",
+  }).format(new Date(`${isoDate}T00:00:00Z`))
+}
+
+function toISODate(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
 interface FormValues {
   original_date: string
   exception_type: string
@@ -73,7 +84,7 @@ export function ScheduleExceptionsList({
 
   const existingExceptionDates = new Set(exceptions.map((e) => e.original_date))
   const availableDates = upcomingDates.filter(
-    (d) => !existingExceptionDates.has(d.toISOString().slice(0, 10))
+    (d) => !existingExceptionDates.has(toISODate(d))
   )
 
   async function handleDelete(id: string) {
@@ -140,7 +151,7 @@ export function ScheduleExceptionsList({
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-medium text-foreground">
-                    {new Date(ex.original_date + "T00:00:00").toLocaleDateString("en-US", {
+                    {formatUTCDate(ex.original_date, {
                       weekday: "short",
                       month: "short",
                       day: "numeric",
@@ -151,7 +162,7 @@ export function ScheduleExceptionsList({
                   </Badge>
                   {ex.exception_type === "reschedule" && ex.new_date && (
                     <span className="text-xs text-muted-foreground">
-                      → {new Date(ex.new_date + "T00:00:00").toLocaleDateString("en-US", {
+                      → {formatUTCDate(ex.new_date, {
                         month: "short",
                         day: "numeric",
                       })}
@@ -191,10 +202,10 @@ export function ScheduleExceptionsList({
                 </SelectTrigger>
                 <SelectContent>
                   {availableDates.map((d) => {
-                    const iso = d.toISOString().slice(0, 10)
+                    const iso = toISODate(d)
                     return (
                       <SelectItem key={iso} value={iso}>
-                        {d.toLocaleDateString("en-US", {
+                        {formatUTCDate(iso, {
                           weekday: "short",
                           month: "long",
                           day: "numeric",
