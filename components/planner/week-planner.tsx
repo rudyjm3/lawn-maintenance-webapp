@@ -1,15 +1,19 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { cn } from "@/lib/utils"
-import { JobChip } from "./job-chip"
-import { CapacityBar } from "./capacity-bar"
+import { startTransition, useCallback, useState } from "react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
+import { updateJobSchedule } from "@/app/actions/jobs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Plus, ChevronLeft, ChevronRight, X } from "lucide-react"
+import { formatLocalDate } from "@/lib/dates"
+import { cn } from "@/lib/utils"
+import { CapacityBar } from "./capacity-bar"
+import { JobChip } from "./job-chip"
 import type { Job, WeekDaySnapshot } from "@/types"
 
-const CAPACITY_MIN = 480 // 8h default
+const CAPACITY_MIN = 480
 
 interface WeekPlannerProps {
   initialDays: WeekDaySnapshot[]
@@ -19,21 +23,22 @@ interface WeekPlannerProps {
 function isoDate(base: Date, offsetDays: number): string {
   const d = new Date(base)
   d.setDate(d.getDate() + offsetDays)
-  return d.toISOString().slice(0, 10)
+  return formatLocalDate(d)
 }
 
 function buildWeekDays(anchor: Date, allJobs: Job[]): WeekDaySnapshot[] {
-  const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-  const todayStr = new Date().toISOString().slice(0, 10)
+  const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  const todayStr = formatLocalDate(new Date())
 
   return Array.from({ length: 7 }, (_, i) => {
     const date = isoDate(anchor, i)
-    const jobs = allJobs.filter((j) => j.service_date === date && j.status !== "cancelled")
-    const scheduledMinutes = jobs.reduce((s, j) => s + j.estimated_duration_min, 0)
-    const d = new Date(date + "T12:00:00")
+    const jobs = allJobs.filter((job) => job.service_date === date && job.status !== "cancelled")
+    const scheduledMinutes = jobs.reduce((sum, job) => sum + job.estimated_duration_min, 0)
+    const dateObject = new Date(`${date}T12:00:00`)
+
     return {
       date,
-      label: DAY_LABELS[d.getDay()],
+      label: dayLabels[dateObject.getDay()],
       isToday: date === todayStr,
       jobCount: jobs.length,
       scheduledMinutes,
@@ -45,36 +50,41 @@ function buildWeekDays(anchor: Date, allJobs: Job[]): WeekDaySnapshot[] {
 }
 
 export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProps) {
-  // All jobs in a flat mutable list (replaces DB in dev)
+  const router = useRouter()
   const [allJobs, setAllJobs] = useState<Job[]>([
-    ...initialDays.flatMap((d) => d.jobs),
+    ...initialDays.flatMap((day) => day.jobs),
     ...initialUnscheduled,
   ])
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
-    // Start on Monday of the current week
     const d = new Date()
     const day = d.getDay()
     d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
     d.setHours(0, 0, 0, 0)
     return d
   })
-
-  // Drag state
   const [draggingJobId, setDraggingJobId] = useState<string | null>(null)
   const [dropTargetDate, setDropTargetDate] = useState<string | null>(null)
-
-  // Sidebar visibility
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const days = buildWeekDays(weekAnchor, allJobs)
-  const unscheduled = allJobs.filter((j) => j.service_date === null || j.service_date === undefined)
+  const unscheduled = allJobs.filter((job) => !job.service_date)
 
   function prevWeek() {
-    setWeekAnchor((d) => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
+    setWeekAnchor((date) => {
+      const next = new Date(date)
+      next.setDate(next.getDate() - 7)
+      return next
+    })
   }
+
   function nextWeek() {
-    setWeekAnchor((d) => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })
+    setWeekAnchor((date) => {
+      const next = new Date(date)
+      next.setDate(next.getDate() + 7)
+      return next
+    })
   }
+
   function goToday() {
     const d = new Date()
     const day = d.getDay()
@@ -82,8 +92,6 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
     d.setHours(0, 0, 0, 0)
     setWeekAnchor(d)
   }
-
-  // ── Drag-and-drop handlers ──────────────────────────────────────────────────
 
   const handleDragStart = useCallback((e: React.DragEvent, jobId: string) => {
     setDraggingJobId(jobId)
@@ -97,21 +105,33 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
   }, [])
 
   const handleDrop = useCallback(
-    (e: React.DragEvent, targetDate: string | null) => {
+    async (e: React.DragEvent, targetDate: string | null) => {
       e.preventDefault()
       if (!draggingJobId) return
+
+      const previousJobs = allJobs
       setAllJobs((prev) =>
-        prev.map((j) =>
-          j.id === draggingJobId
-            ? { ...j, service_date: targetDate, status: targetDate ? "scheduled" : "unscheduled" }
-            : j,
+        prev.map((job) =>
+          job.id === draggingJobId
+            ? { ...job, service_date: targetDate, status: targetDate ? "scheduled" : "unscheduled" }
+            : job,
         ),
       )
       setDraggingJobId(null)
       setDropTargetDate(null)
-      // TODO: persist to Supabase — supabase.from('jobs').update({ service_date: targetDate }).eq('id', draggingJobId)
+
+      const result = await updateJobSchedule(draggingJobId, targetDate)
+      if (!result.success) {
+        setAllJobs(previousJobs)
+        toast.error(result.message)
+        return
+      }
+
+      startTransition(() => {
+        router.refresh()
+      })
     },
-    [draggingJobId],
+    [allJobs, draggingJobId, router],
   )
 
   const handleDragEnd = useCallback(() => {
@@ -119,14 +139,19 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
     setDropTargetDate(null)
   }, [])
 
-  // ── Week range label ────────────────────────────────────────────────────────
   const endAnchor = new Date(weekAnchor)
   endAnchor.setDate(endAnchor.getDate() + 6)
-  const rangeLabel = `${weekAnchor.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${endAnchor.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+  const rangeLabel = `${weekAnchor.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })} - ${endAnchor.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })}`
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevWeek}>
@@ -139,35 +164,39 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
+
         <span className="text-sm font-medium text-foreground">{rangeLabel}</span>
 
         <div className="ml-auto flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="h-8 text-xs gap-1"
-            onClick={() => setSidebarOpen((v) => !v)}
+            className="h-8 gap-1 text-xs"
+            onClick={() => setSidebarOpen((value) => !value)}
           >
             <span>{unscheduled.length}</span> Unscheduled
           </Button>
-          <Button size="sm" className="h-8 gap-1 text-xs">
+          <Button
+            size="sm"
+            className="h-8 gap-1 text-xs"
+            onClick={() => router.push("/jobs?new=1")}
+          >
             <Plus className="h-3.5 w-3.5" />
             Add Job
           </Button>
         </div>
       </div>
 
-      {/* ── Main layout ── */}
       <div className="flex flex-1 gap-4 overflow-hidden">
-        {/* ── Week grid ── */}
         <div className="flex flex-1 gap-1 overflow-x-auto">
           {days.map((day) => {
             const isDropTarget = dropTargetDate === day.date
+
             return (
               <div
                 key={day.date}
                 onDragOver={(e) => handleDragOver(e, day.date)}
-                onDrop={(e) => handleDrop(e, day.date)}
+                onDrop={(e) => void handleDrop(e, day.date)}
                 onDragLeave={() => setDropTargetDate(null)}
                 className={cn(
                   "flex min-w-[120px] flex-1 flex-col rounded-xl border bg-card transition-colors",
@@ -176,7 +205,6 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
                   day.isOverbooked && !isDropTarget && "border-destructive/40",
                 )}
               >
-                {/* Day header */}
                 <div
                   className={cn(
                     "flex items-center justify-between rounded-t-xl px-3 py-2",
@@ -195,20 +223,19 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
                       {day.label}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(day.date + "T12:00:00").toLocaleDateString("en-US", {
+                      {new Date(`${day.date}T12:00:00`).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
                       })}
                     </p>
                   </div>
                   {day.isOverbooked && (
-                    <Badge variant="destructive" className="h-5 text-[10px] px-1.5">
+                    <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
                       Over
                     </Badge>
                   )}
                 </div>
 
-                {/* Capacity bar */}
                 <div className="px-3 pt-2">
                   <CapacityBar
                     scheduledMinutes={day.scheduledMinutes}
@@ -216,7 +243,6 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
                   />
                 </div>
 
-                {/* Job chips */}
                 <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-2">
                   {day.jobs.length === 0 && !isDropTarget && (
                     <p className="pt-2 text-center text-[11px] text-muted-foreground/50">
@@ -238,18 +264,19 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
           })}
         </div>
 
-        {/* ── Unscheduled sidebar ── */}
         {sidebarOpen && (
           <div
             className="flex w-52 shrink-0 flex-col rounded-xl border border-border bg-card"
             onDragOver={(e) => handleDragOver(e, null)}
-            onDrop={(e) => handleDrop(e, null)}
+            onDrop={(e) => void handleDrop(e, null)}
             onDragLeave={() => setDropTargetDate(null)}
           >
-            <div className={cn(
-              "flex items-center justify-between rounded-t-xl px-3 py-2 bg-muted/40 border-b border-border",
-              dropTargetDate === null && draggingJobId && "bg-primary/10",
-            )}>
+            <div
+              className={cn(
+                "flex items-center justify-between rounded-t-xl border-b border-border bg-muted/40 px-3 py-2",
+                dropTargetDate === null && draggingJobId && "bg-primary/10",
+              )}
+            >
               <p className="text-xs font-semibold text-foreground">
                 Unscheduled
                 {unscheduled.length > 0 && (
@@ -280,12 +307,13 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
                   job={job}
                   draggable
                   onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
                 />
               ))}
             </div>
 
             <div className="border-t border-border p-2">
-              <p className="text-[11px] text-muted-foreground text-center leading-tight">
+              <p className="text-center text-[11px] leading-tight text-muted-foreground">
                 Drag a job onto a day to schedule it
               </p>
             </div>

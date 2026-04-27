@@ -14,6 +14,7 @@ import { WeekSnapshot } from "@/components/dashboard/week-snapshot"
 import { RoutePreview } from "@/components/dashboard/route-preview"
 import { ActivityFeed } from "@/components/dashboard/activity-feed"
 import { Button } from "@/components/ui/button"
+import { formatLocalDate } from "@/lib/dates"
 import { createClient } from "@/lib/supabase/server"
 import type { ActivityItem, Job, Route, RouteStop, WeekDaySnapshot } from "@/types"
 
@@ -40,7 +41,7 @@ type RecentClient = {
 function isoDate(base: Date, offsetDays: number): string {
   const d = new Date(base)
   d.setDate(d.getDate() + offsetDays)
-  return d.toISOString().slice(0, 10)
+  return formatLocalDate(d)
 }
 
 function getWeekStart(date: Date): Date {
@@ -53,7 +54,7 @@ function getWeekStart(date: Date): Date {
 
 function buildWeekSnapshot(jobs: JobRow[], weekStart: Date): WeekDaySnapshot[] {
   const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-  const today = new Date().toISOString().slice(0, 10)
+  const today = formatLocalDate(new Date())
 
   return Array.from({ length: 7 }, (_, index) => {
     const date = isoDate(weekStart, index)
@@ -88,7 +89,7 @@ export default async function DashboardPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = formatLocalDate(new Date())
   const weekStart = getWeekStart(new Date())
   const weekEnd = isoDate(weekStart, 6)
 
@@ -123,7 +124,7 @@ export default async function DashboardPage() {
     db
       .from("jobs")
       .select("*, client:clients(name), property:properties(address)")
-      .gte("service_date", weekStart.toISOString().slice(0, 10))
+      .gte("service_date", isoDate(weekStart, 0))
       .lte("service_date", weekEnd)
       .neq("status", "cancelled"),
     db

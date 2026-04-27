@@ -32,6 +32,16 @@ import { cn } from "@/lib/utils"
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
+function formatPreviewDate(date: Date): string {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date)
+}
+
 interface FormValues {
   frequency_type: string
   interval: string
@@ -310,12 +320,7 @@ export function RecurrenceRuleDialog({
                   <div key={i} className="flex items-center gap-2 text-sm">
                     <span className="w-4 text-right text-xs text-muted-foreground">{i + 1}.</span>
                     <Badge variant="secondary" className="text-xs font-normal">
-                      {d.toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
+                      {formatPreviewDate(d)}
                     </Badge>
                   </div>
                 ))}
