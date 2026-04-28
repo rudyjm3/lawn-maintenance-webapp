@@ -13,12 +13,12 @@ import { Button } from "@/components/ui/button"
 type Tab = "completed" | "skipped"
 
 function formatTime(iso: string | null): string {
-  if (!iso) return "—"
+  if (!iso) return "--"
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 }
 
 function formatDuration(minutes: number | null): string {
-  if (!minutes) return "—"
+  if (!minutes) return "--"
   if (minutes < 60) return `${minutes}m`
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
@@ -227,7 +227,7 @@ export default function HistoryPage() {
       <div className="sticky top-0 z-10 border-b border-border bg-background px-4 py-4">
         <h1 className="text-lg font-semibold text-foreground">Today&apos;s History</h1>
         <p className="text-sm text-muted-foreground">
-          {stops.filter((s) => s.status === "completed").length} completed ·{" "}
+          {stops.filter((s) => s.status === "completed").length} completed -{" "}
           {stops.filter((s) => s.status === "skipped").length} skipped
         </p>
       </div>
@@ -270,3 +270,4 @@ export default function HistoryPage() {
     </div>
   )
 }
+

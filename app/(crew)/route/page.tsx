@@ -21,7 +21,7 @@ function formatDuration(minutes: number): string {
 }
 
 function formatTime(isoDatetime: string | null): string {
-  if (!isoDatetime) return "—"
+  if (!isoDatetime) return "--"
   return new Date(isoDatetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 }
 
@@ -214,16 +214,28 @@ export default function RoutePage() {
     )
   }
 
-  if (error || !route) {
+  if (error) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
           <MapPin className="h-8 w-8 text-muted-foreground" />
         </div>
-        <p className="text-base font-medium">{error ?? "No route for today."}</p>
+        <p className="text-base font-medium">{error}</p>
         <Button variant="outline" onClick={() => setReloadKey((v) => v + 1)}>
           Retry
         </Button>
+      </div>
+    )
+  }
+
+  if (!route) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <MapPin className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <p className="text-base font-medium">No route for today.</p>
+        <p className="text-sm text-muted-foreground">Check back later or contact your manager.</p>
       </div>
     )
   }
@@ -237,7 +249,7 @@ export default function RoutePage() {
 
   // Estimate finish from last stop
   const lastStop   = stops[stops.length - 1]
-  const finishTime = lastStop?.est_finish ? formatTime(lastStop.est_finish) : "—"
+  const finishTime = lastStop?.est_finish ? formatTime(lastStop.est_finish) : "--"
 
   return (
     <div className="flex flex-col">
@@ -287,3 +299,4 @@ export default function RoutePage() {
     </div>
   )
 }
+

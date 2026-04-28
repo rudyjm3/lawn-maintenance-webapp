@@ -188,7 +188,7 @@ export default async function TodayPage() {
                     {property?.address ?? "No address"}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {svc?.name ?? "Service"} · {formatDuration(job?.estimated_duration_min ?? 0)}
+                    {svc?.name ?? "Service"} - {formatDuration(job?.estimated_duration_min ?? 0)}
                   </p>
                 </div>
               </div>
@@ -241,3 +241,4 @@ export default async function TodayPage() {
     </div>
   )
 }
+
