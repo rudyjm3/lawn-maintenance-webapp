@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
+import { generateJobsForBusinessLookahead } from "@/lib/jobs"
+import { addUtcDaysToIso, todayUtc } from "@/lib/dates"
 import { z } from "zod"
 
 export type ServiceCatalogActionState =
@@ -236,14 +238,32 @@ export async function saveRecurrenceRule(
   if (id) {
     const { error } = await db.from("recurrence_rules").update(row).eq("id", id)
     if (error) return { success: false, message: error.message }
+
+    await generateJobsForBusinessLookahead(db, businessId, {
+      startDate: todayUtc(),
+      endDate: addUtcDaysToIso(todayUtc(), 28),
+    })
+
     revalidatePath(`/clients/${client_id}`)
+    revalidatePath("/dashboard")
+    revalidatePath("/schedule")
+    revalidatePath("/jobs")
     return { success: true, message: "Schedule updated." }
   }
 
   const insertRow = { ...row, business_id: businessId }
   const { error } = await db.from("recurrence_rules").insert(insertRow)
   if (error) return { success: false, message: error.message }
+
+  await generateJobsForBusinessLookahead(db, businessId, {
+    startDate: todayUtc(),
+    endDate: addUtcDaysToIso(todayUtc(), 28),
+  })
+
   revalidatePath(`/clients/${client_id}`)
+  revalidatePath("/dashboard")
+  revalidatePath("/schedule")
+  revalidatePath("/jobs")
   return { success: true, message: "Schedule saved." }
 }
 
