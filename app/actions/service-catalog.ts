@@ -57,6 +57,10 @@ const RecurrenceRuleSchema = z
     message: "End date must be on or after start date",
     path: ["end_date"],
   })
+  .refine((d) => d.frequency_type === "monthly" || d.day_of_week !== null, {
+    message: "Day of week is required for non-monthly schedules",
+    path: ["day_of_week"],
+  })
 
 const ScheduleExceptionSchema = z
   .object({
@@ -179,14 +183,32 @@ export async function savePropertyService(
   if (id) {
     const { error } = await db.from("property_services").update(row).eq("id", id)
     if (error) return { success: false, message: error.message }
+
+    await generateJobsForBusinessLookahead(db, businessId, {
+      startDate: todayUtc(),
+      endDate: addUtcDaysToIso(todayUtc(), 28),
+    })
+
     revalidatePath(`/clients/${client_id}`)
+    revalidatePath("/dashboard")
+    revalidatePath("/schedule")
+    revalidatePath("/jobs")
     return { success: true, message: "Service assignment updated." }
   }
 
   const insertRow = { ...row, business_id: businessId }
   const { error } = await db.from("property_services").insert(insertRow)
   if (error) return { success: false, message: error.message }
+
+  await generateJobsForBusinessLookahead(db, businessId, {
+    startDate: todayUtc(),
+    endDate: addUtcDaysToIso(todayUtc(), 28),
+  })
+
   revalidatePath(`/clients/${client_id}`)
+  revalidatePath("/dashboard")
+  revalidatePath("/schedule")
+  revalidatePath("/jobs")
   return { success: true, message: "Service assigned to property." }
 }
 
@@ -195,16 +217,23 @@ export async function deletePropertyService(
   clientId: string
 ): Promise<ServiceCatalogActionState> {
   const supabase = await createSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: "Not authenticated." }
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
   const { error } = await db.from("property_services").delete().eq("id", id)
   if (error) return { success: false, message: error.message }
+
+  await generateJobsForBusinessLookahead(db, businessId, {
+    startDate: todayUtc(),
+    endDate: addUtcDaysToIso(todayUtc(), 28),
+  })
+
   revalidatePath(`/clients/${clientId}`)
+  revalidatePath("/dashboard")
+  revalidatePath("/schedule")
+  revalidatePath("/jobs")
   return { success: true, message: "Service removed from property." }
 }
 
@@ -284,6 +313,11 @@ export async function saveScheduleException(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
   const { id, client_id, ...fields } = parsed.data
+
+  if (fields.exception_type === "reschedule" && fields.new_date === fields.original_date) {
+    return { success: false, message: "Reschedule date must be different from original date." }
+  }
+
   const row = {
     recurrence_rule_id: fields.recurrence_rule_id,
     original_date: fields.original_date,
@@ -295,14 +329,32 @@ export async function saveScheduleException(
   if (id) {
     const { error } = await db.from("schedule_exceptions").update(row).eq("id", id)
     if (error) return { success: false, message: error.message }
+
+    await generateJobsForBusinessLookahead(db, businessId, {
+      startDate: todayUtc(),
+      endDate: addUtcDaysToIso(todayUtc(), 28),
+    })
+
     revalidatePath(`/clients/${client_id}`)
+    revalidatePath("/dashboard")
+    revalidatePath("/schedule")
+    revalidatePath("/jobs")
     return { success: true, message: "Exception updated." }
   }
 
   const insertRow = { ...row, business_id: businessId }
   const { error } = await db.from("schedule_exceptions").insert(insertRow)
   if (error) return { success: false, message: error.message }
+
+  await generateJobsForBusinessLookahead(db, businessId, {
+    startDate: todayUtc(),
+    endDate: addUtcDaysToIso(todayUtc(), 28),
+  })
+
   revalidatePath(`/clients/${client_id}`)
+  revalidatePath("/dashboard")
+  revalidatePath("/schedule")
+  revalidatePath("/jobs")
   return { success: true, message: "Exception saved." }
 }
 
@@ -311,15 +363,22 @@ export async function deleteScheduleException(
   clientId: string
 ): Promise<ServiceCatalogActionState> {
   const supabase = await createSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: "Not authenticated." }
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
   const { error } = await db.from("schedule_exceptions").delete().eq("id", id)
   if (error) return { success: false, message: error.message }
+
+  await generateJobsForBusinessLookahead(db, businessId, {
+    startDate: todayUtc(),
+    endDate: addUtcDaysToIso(todayUtc(), 28),
+  })
+
   revalidatePath(`/clients/${clientId}`)
+  revalidatePath("/dashboard")
+  revalidatePath("/schedule")
+  revalidatePath("/jobs")
   return { success: true, message: "Exception removed." }
 }

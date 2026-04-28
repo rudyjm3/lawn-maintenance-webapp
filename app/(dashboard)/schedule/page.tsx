@@ -30,6 +30,17 @@ export default async function SchedulePage() {
       .eq("status", "unscheduled"),
   ])
 
+  if (scheduledJobsResult.error || unscheduledJobsResult.error) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-border bg-card px-6 py-10 text-center">
+        <h1 className="text-xl font-semibold text-foreground">Schedule</h1>
+        <p className="text-sm text-destructive">
+          {scheduledJobsResult.error?.message ?? unscheduledJobsResult.error?.message ?? "Failed to load schedule."}
+        </p>
+      </div>
+    )
+  }
+
   const scheduledJobs = normalizeJobRows((scheduledJobsResult.data ?? []) as Record<string, unknown>[]) as Job[]
   const unscheduled = normalizeJobRows((unscheduledJobsResult.data ?? []) as Record<string, unknown>[]) as Job[]
   const weekDays = buildWeekSnapshot(scheduledJobs, weekStart)

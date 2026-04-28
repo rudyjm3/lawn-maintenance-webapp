@@ -15,6 +15,7 @@ import { PhotoUpload } from "@/components/crew/photo-upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "sonner"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,8 +61,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [job, setJob]          = useState<any | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [routeStop, setRouteStop] = useState<any | null>(null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [currentUser, setCurrentUser] = useState<any | null>(null)
   const [loading, setLoading]  = useState(true)
   const [error, setError]      = useState<string | null>(null)
@@ -73,9 +72,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [beforeUrl, setBeforeUrl]           = useState<string | null>(null)
   const [afterUrl, setAfterUrl]             = useState<string | null>(null)
   const [submitting, setSubmitting]         = useState(false)
+  const [submittingAction, setSubmittingAction] = useState<"complete" | "skip" | null>(null)
   const [submitError, setSubmitError]       = useState<string | null>(null)
   const [showSkipSheet, setShowSkipSheet]   = useState(false)
   const [skipReason, setSkipReason]         = useState(SKIP_REASONS[0])
+  const [reloadKey, setReloadKey]           = useState(0)
 
   // Start time — record once on mount
   const [startMs] = useState(() => Date.now())
@@ -117,27 +118,44 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           : Promise.resolve({ data: null }),
       ])
 
-      if (jobRes.error) { setError(jobRes.error.message); setLoading(false); return }
+      if (userRes.error || !userRes.data) {
+        setError(userRes.error?.message ?? "Could not load crew profile.")
+        setLoading(false)
+        return
+      }
+      if (jobRes.error || !jobRes.data) {
+        setError(jobRes.error?.message ?? "Job not found.")
+        setLoading(false)
+        return
+      }
+      if (stopId && stopRes?.error) {
+        setError(stopRes.error.message)
+        setLoading(false)
+        return
+      }
 
       setCurrentUser(userRes.data)
       setJob(jobRes.data)
-      setRouteStop(stopRes.data)
       setLoading(false)
     }
 
     load()
-  }, [jobId, stopId])
+  }, [jobId, stopId, reloadKey])
 
   // ── Complete flow ──────────────────────────────────────────────────────────
 
   async function handleComplete() {
-    if (!job || !currentUser) return
+    if (!job || !currentUser) {
+      setSubmitError("Could not load crew profile for this action.")
+      return
+    }
     if (job.photo_required && (!beforeUrl || !afterUrl)) {
       setSubmitError("Both before and after photos are required before completing.")
       return
     }
 
     setSubmitting(true)
+    setSubmittingAction("complete")
     setSubmitError(null)
 
     const supabase = createClient()
@@ -187,18 +205,24 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       })
       if (e4) throw new Error(e4.message)
 
+      toast.success("Job completed.")
       router.push("/crew/today")
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to complete job.")
       setSubmitting(false)
+      setSubmittingAction(null)
     }
   }
 
   // ── Skip flow ──────────────────────────────────────────────────────────────
 
   async function handleSkip() {
-    if (!job || !currentUser) return
+    if (!job || !currentUser) {
+      setSubmitError("Could not load crew profile for this action.")
+      return
+    }
     setSubmitting(true)
+    setSubmittingAction("skip")
     setSubmitError(null)
 
     const supabase = createClient()
@@ -229,10 +253,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       })
       if (s3) throw new Error(s3.message)
 
+      toast.success("Job skipped.")
       router.push("/crew/today")
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to skip job.")
       setSubmitting(false)
+      setSubmittingAction(null)
     }
   }
 
@@ -269,6 +295,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
         <AlertTriangle className="h-10 w-10 text-destructive" />
         <p className="text-base font-medium">{error ?? "Job not found."}</p>
+        <Button variant="outline" onClick={() => setReloadKey((v) => v + 1)}>
+          Retry
+        </Button>
       </div>
     )
   }
@@ -447,6 +476,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               )}
             </Button>
           </div>
+          {submitting && submittingAction && (
+            <div className="text-center">
+              <Badge variant="secondary" className="text-xs">
+                {submittingAction === "complete" ? "Completing job..." : "Skipping job..."}
+              </Badge>
+            </div>
+          )}
 
           {job.photo_required && (!beforeUrl || !afterUrl) && (
             <p className="text-center text-xs text-muted-foreground">
@@ -496,7 +532,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                 onClick={handleSkip}
                 disabled={submitting}
               >
-                {submitting ? "Skipping…" : "Skip Job"}
+                {submittingAction === "skip" ? "Skipping…" : "Skip Job"}
               </Button>
             </div>
           </div>

@@ -114,7 +114,7 @@ function buildOccurrenceDates(
     .map((exception) => exception.new_date as string)
     .filter((date) => date >= startDate && date <= endDate)
 
-  return [...baseDates, ...rescheduledDates]
+  return [...new Set([...baseDates, ...rescheduledDates])]
 }
 
 export async function generateJobsForBusinessLookahead(

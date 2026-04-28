@@ -32,25 +32,39 @@ export async function POST(request: NextRequest) {
     businessName: string
     createdCount: number
     skippedCount: number
+    error?: string
   }> = []
 
   for (const business of businesses ?? []) {
-    const result = await generateJobsForBusinessLookahead(supabase, business.id, {
-      startDate,
-      endDate,
-    })
-    results.push({
-      businessId: business.id,
-      businessName: business.business_name,
-      createdCount: result.createdCount,
-      skippedCount: result.skippedCount,
-    })
+    try {
+      const result = await generateJobsForBusinessLookahead(supabase, business.id, {
+        startDate,
+        endDate,
+      })
+      results.push({
+        businessId: business.id,
+        businessName: business.business_name,
+        createdCount: result.createdCount,
+        skippedCount: result.skippedCount,
+      })
+    } catch (error) {
+      results.push({
+        businessId: business.id,
+        businessName: business.business_name,
+        createdCount: 0,
+        skippedCount: 0,
+        error: error instanceof Error ? error.message : "Unknown error",
+      })
+    }
   }
+
+  const failedCount = results.filter((result) => !!result.error).length
 
   return NextResponse.json({
     startDate,
     endDate,
     totalCreated: results.reduce((sum, result) => sum + result.createdCount, 0),
+    failedCount,
     results,
   })
 }

@@ -6,18 +6,11 @@ import { MapPin, Clock, Navigation, ChevronDown, ChevronUp, ExternalLink } from 
 import { createClient } from "@/lib/supabase/client"
 import { todayUtc } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
+import { STOP_STATUS_BADGE, type StopStatus } from "@/components/crew/stop-status"
+import { Button } from "@/components/ui/button"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type StopStatus = "pending" | "arrived" | "in_progress" | "completed" | "skipped"
-
-const STATUS_BADGE: Record<StopStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  pending:     { label: "Pending",     variant: "secondary" },
-  arrived:     { label: "Arrived",     variant: "default" },
-  in_progress: { label: "In Progress", variant: "default" },
-  completed:   { label: "Done",        variant: "outline" },
-  skipped:     { label: "Skipped",     variant: "destructive" },
-}
 
 function formatDuration(minutes: number): string {
   if (!minutes) return "0m"
@@ -43,7 +36,7 @@ function StopCard({ stop }: { stop: any }) {
   const property = job?.property
   const svc      = job?.property_service?.service_type
   const isDone   = stop.status === "completed" || stop.status === "skipped"
-  const statusInfo = STATUS_BADGE[stop.status as StopStatus] ?? STATUS_BADGE.pending
+  const statusInfo = STOP_STATUS_BADGE[stop.status as StopStatus] ?? STOP_STATUS_BADGE.pending
   const hasAccessInfo = property?.access_notes || property?.gate_code || property?.pet_notes
   const mapsUrl = property?.address
     ? `https://maps.google.com/?q=${encodeURIComponent(property.address)}`
@@ -153,6 +146,7 @@ export default function RoutePage() {
   const [route, setRoute] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -163,11 +157,16 @@ export default function RoutePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setError("Not signed in."); setLoading(false); return }
 
-      const { data: userData } = await db
+      const { data: userData, error: userDataError } = await db
         .from("users")
         .select("id, business_id, crew_members(crew_id)")
         .eq("auth_user_id", user.id)
         .single()
+      if (userDataError || !userData) {
+        setError(userDataError?.message ?? "Could not load your crew assignment.")
+        setLoading(false)
+        return
+      }
 
       const crewIds: string[] = (userData?.crew_members ?? []).map(
         (cm: { crew_id: string }) => cm.crew_id,
@@ -205,7 +204,7 @@ export default function RoutePage() {
     }
 
     load()
-  }, [])
+  }, [reloadKey])
 
   if (loading) {
     return (
@@ -222,6 +221,9 @@ export default function RoutePage() {
           <MapPin className="h-8 w-8 text-muted-foreground" />
         </div>
         <p className="text-base font-medium">{error ?? "No route for today."}</p>
+        <Button variant="outline" onClick={() => setReloadKey((v) => v + 1)}>
+          Retry
+        </Button>
       </div>
     )
   }

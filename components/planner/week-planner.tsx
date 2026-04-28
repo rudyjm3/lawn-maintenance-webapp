@@ -65,6 +65,7 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
   const [draggingJobId, setDraggingJobId] = useState<string | null>(null)
   const [dropTargetDate, setDropTargetDate] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
 
   const days = buildWeekDays(weekAnchor, allJobs)
   const unscheduled = allJobs.filter((job) => !job.service_date)
@@ -107,7 +108,14 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
   const handleDrop = useCallback(
     async (e: React.DragEvent, targetDate: string | null) => {
       e.preventDefault()
-      if (!draggingJobId) return
+      if (!draggingJobId || isSaving) return
+
+      const movingJob = allJobs.find((job) => job.id === draggingJobId)
+      if (!movingJob || movingJob.service_date === targetDate) {
+        setDraggingJobId(null)
+        setDropTargetDate(null)
+        return
+      }
 
       const previousJobs = allJobs
       setAllJobs((prev) =>
@@ -119,19 +127,22 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
       )
       setDraggingJobId(null)
       setDropTargetDate(null)
+      setIsSaving(true)
 
       const result = await updateJobSchedule(draggingJobId, targetDate)
+      setIsSaving(false)
       if (!result.success) {
         setAllJobs(previousJobs)
         toast.error(result.message)
         return
       }
+      toast.success(targetDate ? "Job scheduled." : "Job moved to unscheduled.")
 
       startTransition(() => {
         router.refresh()
       })
     },
-    [allJobs, draggingJobId, router],
+    [allJobs, draggingJobId, isSaving, router],
   )
 
   const handleDragEnd = useCallback(() => {
@@ -180,6 +191,7 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
             size="sm"
             className="h-8 gap-1 text-xs"
             onClick={() => router.push("/jobs?new=1")}
+            disabled={isSaving}
           >
             <Plus className="h-3.5 w-3.5" />
             Add Job
@@ -244,6 +256,11 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
                 </div>
 
                 <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-2">
+                  {isDropTarget && draggingJobId && (
+                    <p className="rounded border border-dashed border-primary/40 bg-primary/5 px-2 py-1 text-center text-[11px] text-primary">
+                      Drop to schedule on {day.label}
+                    </p>
+                  )}
                   {day.jobs.length === 0 && !isDropTarget && (
                     <p className="pt-2 text-center text-[11px] text-muted-foreground/50">
                       No jobs
@@ -253,7 +270,7 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
                     <JobChip
                       key={job.id}
                       job={job}
-                      draggable
+                      draggable={!isSaving}
                       onDragStart={handleDragStart}
                       onDragEnd={handleDragEnd}
                     />
@@ -296,6 +313,11 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
             </div>
 
             <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-2">
+              {dropTargetDate === null && draggingJobId && (
+                <p className="rounded border border-dashed border-primary/40 bg-primary/5 px-2 py-1 text-center text-[11px] text-primary">
+                  Drop here to unschedule
+                </p>
+              )}
               {unscheduled.length === 0 && (
                 <p className="pt-4 text-center text-xs text-muted-foreground">
                   All jobs have dates
@@ -305,7 +327,7 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
                 <JobChip
                   key={job.id}
                   job={job}
-                  draggable
+                  draggable={!isSaving}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
                 />
@@ -314,7 +336,7 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
 
             <div className="border-t border-border p-2">
               <p className="text-center text-[11px] leading-tight text-muted-foreground">
-                Drag a job onto a day to schedule it
+                {isSaving ? "Saving schedule update..." : "Drag a job onto a day to schedule it"}
               </p>
             </div>
           </div>

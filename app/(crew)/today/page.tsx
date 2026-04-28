@@ -4,20 +4,12 @@ import { createClient } from "@/lib/supabase/server"
 import { todayUtc } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { STOP_STATUS_BADGE, type StopStatus } from "@/components/crew/stop-status"
 
 export const metadata = { title: "Today's Route" }
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
-type StopStatus = "pending" | "arrived" | "in_progress" | "completed" | "skipped"
-
-const STATUS_BADGE: Record<StopStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  pending:     { label: "Pending",     variant: "secondary" },
-  arrived:     { label: "Arrived",     variant: "default" },
-  in_progress: { label: "In Progress", variant: "default" },
-  completed:   { label: "Done",        variant: "outline" },
-  skipped:     { label: "Skipped",     variant: "destructive" },
-}
 
 function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes}m`
@@ -42,6 +34,9 @@ function EmptyState({ message }: { message: string }) {
       </div>
       <p className="text-base font-medium text-foreground">{message}</p>
       <p className="text-sm text-muted-foreground">Check back later or contact your manager.</p>
+      <Button variant="outline" asChild>
+        <Link href="/crew/today">Retry</Link>
+      </Button>
     </div>
   )
 }
@@ -59,11 +54,14 @@ export default async function TodayPage() {
 
   if (!user) return <EmptyState message="Not signed in." />
 
-  const { data: userData } = await db
+  const { data: userData, error: userDataError } = await db
     .from("users")
     .select("id, first_name, last_name, business_id, crew_members(crew_id)")
     .eq("auth_user_id", user.id)
     .single()
+  if (userDataError) {
+    return <EmptyState message={userDataError.message} />
+  }
 
   const crewIds: string[] = (userData?.crew_members ?? []).map((cm: { crew_id: string }) => cm.crew_id)
 
@@ -73,7 +71,7 @@ export default async function TodayPage() {
 
   const today = todayUtc()
 
-  const { data: routeRows } = await db
+  const { data: routeRows, error: routeRowsError } = await db
     .from("routes")
     .select(`
       id, route_date, total_job_min, total_drive_min, is_locked,
@@ -95,6 +93,9 @@ export default async function TodayPage() {
     .in("crew_id", crewIds)
     .eq("route_date", today)
     .order("created_at")
+  if (routeRowsError) {
+    return <EmptyState message={routeRowsError.message} />
+  }
 
   // Take the first route for today; in multi-crew setups the owner controls which
   // routes are created — crew members are typically assigned to one active route per day
@@ -158,7 +159,7 @@ export default async function TodayPage() {
           const property = job?.property
           const svc      = job?.property_service?.service_type
 
-          const statusInfo = STATUS_BADGE[stop.status as StopStatus] ?? STATUS_BADGE.pending
+          const statusInfo = STOP_STATUS_BADGE[stop.status as StopStatus] ?? STOP_STATUS_BADGE.pending
           const isDone     = stop.status === "completed" || stop.status === "skipped"
           const mapsUrl    = property?.address
             ? `https://maps.google.com/?q=${encodeURIComponent(property.address)}`
