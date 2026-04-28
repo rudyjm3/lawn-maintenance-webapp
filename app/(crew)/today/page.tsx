@@ -73,7 +73,7 @@ export default async function TodayPage() {
 
   const today = todayUtc()
 
-  const { data: route } = await db
+  const { data: routeRows } = await db
     .from("routes")
     .select(`
       id, route_date, total_job_min, total_drive_min, is_locked,
@@ -94,7 +94,11 @@ export default async function TodayPage() {
     `)
     .in("crew_id", crewIds)
     .eq("route_date", today)
-    .maybeSingle()
+    .order("created_at")
+
+  // Take the first route for today; in multi-crew setups the owner controls which
+  // routes are created — crew members are typically assigned to one active route per day
+  const route = (routeRows ?? [])[0] ?? null
 
   if (!route) {
     return <EmptyState message="No route scheduled for today." />

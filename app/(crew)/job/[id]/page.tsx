@@ -154,18 +154,18 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       }).eq("id", job.id)
       if (e1) throw new Error(e1.message)
 
-      // Update route stop
+      // Update route stop — filter by both id and job_id to prevent stop/job mismatch
       if (stopId) {
         const { error: e2 } = await db.from("route_stops").update({
           status: "completed",
           actual_finish: now,
-        }).eq("id", stopId)
+        }).eq("id", stopId).eq("job_id", job.id)
         if (e2) throw new Error(e2.message)
       }
 
       // Insert time log
       const startIso = new Date(startMs).toISOString()
-      await db.from("time_logs").insert({
+      const { error: e3 } = await db.from("time_logs").insert({
         job_id:      job.id,
         user_id:     currentUser.id,
         start_time:  startIso,
@@ -174,9 +174,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         notes:       notes || null,
         business_id: job.business_id,
       })
+      if (e3) throw new Error(e3.message)
 
       // Insert activity log
-      await db.from("activity_logs").insert({
+      const { error: e4 } = await db.from("activity_logs").insert({
         entity_type: "job",
         entity_id:   job.id,
         action_type: "completed",
@@ -184,6 +185,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         business_id: job.business_id,
         metadata:    { notes: notes || null, duration_min: elapsedMin },
       })
+      if (e4) throw new Error(e4.message)
 
       router.push("/crew/today")
     } catch (err) {
@@ -205,16 +207,19 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     const now = new Date().toISOString()
 
     try {
-      await db.from("jobs").update({ status: "skipped" }).eq("id", job.id)
+      const { error: s1 } = await db.from("jobs").update({ status: "skipped" }).eq("id", job.id)
+      if (s1) throw new Error(s1.message)
 
       if (stopId) {
-        await db.from("route_stops").update({
+        // Filter by both id and job_id to prevent stop/job mismatch from crafted URLs
+        const { error: s2 } = await db.from("route_stops").update({
           status: "skipped",
           actual_finish: now,
-        }).eq("id", stopId)
+        }).eq("id", stopId).eq("job_id", job.id)
+        if (s2) throw new Error(s2.message)
       }
 
-      await db.from("activity_logs").insert({
+      const { error: s3 } = await db.from("activity_logs").insert({
         entity_type: "job",
         entity_id:   job.id,
         action_type: "skipped",
@@ -222,6 +227,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         business_id: job.business_id,
         metadata:    { reason: skipReason },
       })
+      if (s3) throw new Error(s3.message)
 
       router.push("/crew/today")
     } catch (err) {

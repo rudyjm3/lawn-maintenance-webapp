@@ -176,7 +176,7 @@ export default function RoutePage() {
       if (!crewIds.length) { setError("Not assigned to a crew."); setLoading(false); return }
 
       const today = todayUtc()
-      const { data: routeData, error: routeError } = await db
+      const { data: routeRows, error: routeError } = await db
         .from("routes")
         .select(`
           id, route_date, total_job_min, total_drive_min, is_locked,
@@ -197,10 +197,10 @@ export default function RoutePage() {
         `)
         .in("crew_id", crewIds)
         .eq("route_date", today)
-        .maybeSingle()
+        .order("created_at")
 
       if (routeError) { setError(routeError.message); setLoading(false); return }
-      setRoute(routeData)
+      setRoute((routeRows ?? [])[0] ?? null)
       setLoading(false)
     }
 
