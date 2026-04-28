@@ -30,12 +30,27 @@ export async function submitQuote(values: QuoteFormValues): Promise<LeadActionSt
     return { success: false, message: parsed.error.issues[0]?.message ?? "Validation error" }
   }
 
-  const businessId = process.env.SITE_BUSINESS_ID
-  if (!businessId) {
-    return { success: false, message: "Quote submissions are not configured yet. Please call us directly." }
-  }
-
   const db = createAdminClient() as any
+  let businessId = process.env.SITE_BUSINESS_ID?.trim() || process.env.NEXT_PUBLIC_SITE_BUSINESS_ID?.trim() || ""
+
+  // Dev-friendly fallback: if exactly one business exists, use it automatically.
+  // In multi-business setups, explicit SITE_BUSINESS_ID is required.
+  if (!businessId) {
+    const { data: businesses, error } = await db
+      .from("businesses")
+      .select("id")
+      .limit(2)
+
+    if (error) {
+      return { success: false, message: "Quote submissions are not configured yet. Please call us directly." }
+    }
+
+    if ((businesses?.length ?? 0) === 1) {
+      businessId = businesses[0].id as string
+    } else {
+      return { success: false, message: "Quote submissions are not configured yet. Please call us directly." }
+    }
+  }
 
   const row = {
     business_id: businessId,
@@ -49,8 +64,23 @@ export async function submitQuote(values: QuoteFormValues): Promise<LeadActionSt
     source: "website",
   }
 
-  const { error } = await db.from("leads").insert(row)
-  if (error) return { success: false, message: "Something went wrong. Please try again." }
+  let { error } = await db.from("leads").insert(row)
+
+  // Backward-compatible fallback for databases that don't yet have leads.notes.
+  if (error?.message?.includes("Could not find the 'notes' column")) {
+    const { notes: _notes, ...rowWithoutNotes } = row
+    ;({ error } = await db.from("leads").insert(rowWithoutNotes))
+  }
+
+  if (error) {
+    console.error("submitQuote insert failed:", {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    })
+    return { success: false, message: `Quote submission failed: ${error.message}` }
+  }
 
   return { success: true, message: "Quote request submitted!" }
 }
