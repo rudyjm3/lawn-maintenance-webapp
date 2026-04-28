@@ -1,3 +1,501 @@
-export default function JobDetailPage() {
-  return <div className="p-8 text-lg font-medium">JobDetail</div>
+"use client"
+
+import { use, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import {
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  CheckSquare,
+  Square,
+  Clock,
+} from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { PhotoUpload } from "@/components/crew/photo-upload"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const SKIP_REASONS = [
+  "No access",
+  "Customer request",
+  "Weather",
+  "Equipment issue",
+  "No one home",
+  "Other",
+]
+
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  if (m === 0) return `${s}s`
+  return `${m}m ${s}s`
+}
+
+// ─── Timer (client-only) ──────────────────────────────────────────────────────
+
+function useElapsedTimer(startMs: number) {
+  const [elapsed, setElapsed] = useState(() => Math.floor((Date.now() - startMs) / 1000))
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startMs) / 1000))
+    }, 10_000) // update every 10s is enough
+    return () => clearInterval(id)
+  }, [startMs])
+
+  return elapsed
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: jobId } = use(params)
+  const searchParams = useSearchParams()
+  const stopId = searchParams.get("stopId")
+  const router = useRouter()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [job, setJob]          = useState<any | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [routeStop, setRouteStop] = useState<any | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [currentUser, setCurrentUser] = useState<any | null>(null)
+  const [loading, setLoading]  = useState(true)
+  const [error, setError]      = useState<string | null>(null)
+
+  // UI state
+  const [accessExpanded, setAccessExpanded] = useState(false)
+  const [checklist, setChecklist]           = useState<Record<number, boolean>>({})
+  const [notes, setNotes]                   = useState("")
+  const [beforeUrl, setBeforeUrl]           = useState<string | null>(null)
+  const [afterUrl, setAfterUrl]             = useState<string | null>(null)
+  const [submitting, setSubmitting]         = useState(false)
+  const [submitError, setSubmitError]       = useState<string | null>(null)
+  const [showSkipSheet, setShowSkipSheet]   = useState(false)
+  const [skipReason, setSkipReason]         = useState(SKIP_REASONS[0])
+
+  // Start time — record once on mount
+  const [startMs] = useState(() => Date.now())
+  const elapsedSec = useElapsedTimer(startMs)
+
+  // ── Data load ──────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = supabase as any
+
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setError("Not signed in."); setLoading(false); return }
+
+      const [userRes, jobRes, stopRes] = await Promise.all([
+        db.from("users")
+          .select("id, first_name, last_name, business_id")
+          .eq("auth_user_id", user.id)
+          .single(),
+        db.from("jobs")
+          .select(`
+            id, status, estimated_duration_min, photo_required, business_id,
+            client:clients(id, name, phone),
+            property:properties(id, address, access_notes, gate_code, pet_notes, lawn_size),
+            property_service:property_services(
+              id, instructions,
+              service_type:service_types(id, name, default_duration_min)
+            )
+          `)
+          .eq("id", jobId)
+          .single(),
+        stopId
+          ? db.from("route_stops")
+              .select("id, status, actual_arrival, est_arrival, est_finish, stop_order")
+              .eq("id", stopId)
+              .single()
+          : Promise.resolve({ data: null }),
+      ])
+
+      if (jobRes.error) { setError(jobRes.error.message); setLoading(false); return }
+
+      setCurrentUser(userRes.data)
+      setJob(jobRes.data)
+      setRouteStop(stopRes.data)
+      setLoading(false)
+    }
+
+    load()
+  }, [jobId, stopId])
+
+  // ── Complete flow ──────────────────────────────────────────────────────────
+
+  async function handleComplete() {
+    if (!job || !currentUser) return
+    if (job.photo_required && (!beforeUrl || !afterUrl)) {
+      setSubmitError("Both before and after photos are required before completing.")
+      return
+    }
+
+    setSubmitting(true)
+    setSubmitError(null)
+
+    const supabase = createClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    const now = new Date().toISOString()
+    const elapsedMin = Math.max(1, Math.round(elapsedSec / 60))
+
+    try {
+      // Update job status
+      const { error: e1 } = await db.from("jobs").update({
+        status: "completed",
+        actual_duration_min: elapsedMin,
+      }).eq("id", job.id)
+      if (e1) throw new Error(e1.message)
+
+      // Update route stop
+      if (stopId) {
+        const { error: e2 } = await db.from("route_stops").update({
+          status: "completed",
+          actual_finish: now,
+        }).eq("id", stopId)
+        if (e2) throw new Error(e2.message)
+      }
+
+      // Insert time log
+      const startIso = new Date(startMs).toISOString()
+      await db.from("time_logs").insert({
+        job_id:      job.id,
+        user_id:     currentUser.id,
+        start_time:  startIso,
+        end_time:    now,
+        duration_min: elapsedMin,
+        notes:       notes || null,
+        business_id: job.business_id,
+      })
+
+      // Insert activity log
+      await db.from("activity_logs").insert({
+        entity_type: "job",
+        entity_id:   job.id,
+        action_type: "completed",
+        user_id:     currentUser.id,
+        business_id: job.business_id,
+        metadata:    { notes: notes || null, duration_min: elapsedMin },
+      })
+
+      router.push("/crew/today")
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to complete job.")
+      setSubmitting(false)
+    }
+  }
+
+  // ── Skip flow ──────────────────────────────────────────────────────────────
+
+  async function handleSkip() {
+    if (!job || !currentUser) return
+    setSubmitting(true)
+    setSubmitError(null)
+
+    const supabase = createClient()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any
+    const now = new Date().toISOString()
+
+    try {
+      await db.from("jobs").update({ status: "skipped" }).eq("id", job.id)
+
+      if (stopId) {
+        await db.from("route_stops").update({
+          status: "skipped",
+          actual_finish: now,
+        }).eq("id", stopId)
+      }
+
+      await db.from("activity_logs").insert({
+        entity_type: "job",
+        entity_id:   job.id,
+        action_type: "skipped",
+        user_id:     currentUser.id,
+        business_id: job.business_id,
+        metadata:    { reason: skipReason },
+      })
+
+      router.push("/crew/today")
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to skip job.")
+      setSubmitting(false)
+    }
+  }
+
+  // ── Checklist helpers ──────────────────────────────────────────────────────
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function buildChecklist(job: any): string[] {
+    const instructions: string = job?.property_service?.instructions ?? ""
+    if (!instructions) {
+      // Fallback generic checklist
+      const svcName: string = job?.property_service?.service_type?.name ?? ""
+      if (svcName.toLowerCase().includes("mow"))
+        return ["Mow all lawn areas", "Edge along paths and borders", "Blow clippings off hard surfaces", "Check for debris or obstacles"]
+      return ["Complete assigned service", "Check area for issues", "Clean up before leaving"]
+    }
+    return instructions
+      .split("\n")
+      .map((l: string) => l.trim())
+      .filter(Boolean)
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (error || !job) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
+        <AlertTriangle className="h-10 w-10 text-destructive" />
+        <p className="text-base font-medium">{error ?? "Job not found."}</p>
+      </div>
+    )
+  }
+
+  const property       = job.property
+  const client         = job.client
+  const svc            = job.property_service?.service_type
+  const hasAccessInfo  = property?.access_notes || property?.gate_code || property?.pet_notes
+  const checklistItems = buildChecklist(job)
+  const alreadyDone    = job.status === "completed" || job.status === "skipped"
+  const photosReady    = !job.photo_required || (!!beforeUrl && !!afterUrl)
+
+  return (
+    <>
+      {/* ── Main scrollable content ── */}
+      <div className="flex flex-col gap-0 pb-36">
+
+        {/* Header card */}
+        <div className="border-b border-border bg-background px-4 py-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">{svc?.name ?? "Service"}</p>
+              <h1 className="mt-0.5 text-lg font-semibold text-foreground leading-tight">
+                {client?.name ?? "Client"}
+              </h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">{property?.address ?? "No address"}</p>
+              {property?.lawn_size && (
+                <p className="mt-0.5 text-xs text-muted-foreground">Lawn size: {property.lawn_size}</p>
+              )}
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              {alreadyDone && (
+                <Badge variant={job.status === "completed" ? "outline" : "destructive"} className="capitalize text-xs">
+                  {job.status}
+                </Badge>
+              )}
+              <span className="text-xs text-muted-foreground">
+                Est. {job.estimated_duration_min}m
+              </span>
+            </div>
+          </div>
+
+          {/* Access notes toggle */}
+          {hasAccessInfo && (
+            <button
+              onClick={() => setAccessExpanded((p) => !p)}
+              className="mt-3 flex w-full items-center justify-between rounded-md bg-muted/60 px-3 py-2 text-sm font-medium text-foreground"
+            >
+              <span>Access info</span>
+              {accessExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          )}
+          {accessExpanded && hasAccessInfo && (
+            <div className="mt-1 rounded-md border border-border bg-muted/30 px-3 py-3 text-sm space-y-1.5">
+              {property?.access_notes && (
+                <p><span className="font-medium">Access: </span>{property.access_notes}</p>
+              )}
+              {property?.gate_code && (
+                <p><span className="font-medium">Gate code: </span>{property.gate_code}</p>
+              )}
+              {property?.pet_notes && (
+                <p><span className="font-medium">Pets: </span>{property.pet_notes}</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Timer */}
+        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <Clock className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Time on site:</span>
+          <span className="text-sm font-semibold text-foreground tabular-nums">
+            {formatElapsed(elapsedSec)}
+          </span>
+        </div>
+
+        {/* Checklist */}
+        <div className="border-b border-border px-4 py-4">
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Checklist</h2>
+          <div className="flex flex-col gap-3">
+            {checklistItems.map((item, i) => (
+              <button
+                key={i}
+                onClick={() => setChecklist((prev) => ({ ...prev, [i]: !prev[i] }))}
+                className="flex items-start gap-3 text-left"
+              >
+                {checklist[i] ? (
+                  <CheckSquare className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                ) : (
+                  <Square className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                )}
+                <span className={`text-sm leading-snug ${checklist[i] ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                  {item}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Photos */}
+        {currentUser && (
+          <div className="border-b border-border px-4 py-4">
+            <h2 className="mb-3 text-sm font-semibold text-foreground">
+              Photos
+              {job.photo_required && (
+                <span className="ml-2 text-xs font-normal text-destructive">Required</span>
+              )}
+            </h2>
+            <div className="grid grid-cols-2 gap-3">
+              <PhotoUpload
+                jobId={job.id}
+                propertyId={job.property?.id ?? ""}
+                businessId={job.business_id}
+                userId={currentUser?.id ?? ""}
+                photoType="before"
+                required={job.photo_required}
+                onUploadComplete={setBeforeUrl}
+              />
+              <PhotoUpload
+                jobId={job.id}
+                propertyId={job.property?.id ?? ""}
+                businessId={job.business_id}
+                userId={currentUser?.id ?? ""}
+                photoType="after"
+                required={job.photo_required}
+                onUploadComplete={setAfterUrl}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Notes */}
+        <div className="px-4 py-4">
+          <h2 className="mb-2 text-sm font-semibold text-foreground">Notes / Issues</h2>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Add notes about the visit, issues found, or anything else the owner should know…"
+            rows={4}
+            className="resize-none text-base"
+          />
+        </div>
+      </div>
+
+      {/* ── Sticky bottom action bar ── */}
+      {!alreadyDone && (
+        <div className="fixed bottom-20 left-0 right-0 z-20 border-t border-border bg-background px-4 py-3 space-y-2">
+          {submitError && (
+            <p className="flex items-center gap-1.5 text-xs text-destructive">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              {submitError}
+            </p>
+          )}
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="h-12 flex-none"
+              onClick={() => setShowSkipSheet(true)}
+              disabled={submitting}
+            >
+              Skip
+            </Button>
+            <Button
+              className="h-12 flex-1"
+              onClick={handleComplete}
+              disabled={submitting || !photosReady}
+            >
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                  Saving…
+                </span>
+              ) : (
+                "Complete Job"
+              )}
+            </Button>
+          </div>
+
+          {job.photo_required && (!beforeUrl || !afterUrl) && (
+            <p className="text-center text-xs text-muted-foreground">
+              Upload both photos to enable completion
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── Skip sheet (modal overlay) ── */}
+      {showSkipSheet && (
+        <div className="fixed inset-0 z-30 flex items-end">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowSkipSheet(false)}
+          />
+          <div className="relative z-10 w-full rounded-t-2xl bg-background px-4 pb-8 pt-6">
+            <h2 className="mb-4 text-base font-semibold text-foreground">Skip this job?</h2>
+            <p className="mb-4 text-sm text-muted-foreground">Select a reason:</p>
+            <div className="flex flex-col gap-2 mb-6">
+              {SKIP_REASONS.map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => setSkipReason(reason)}
+                  className={`flex h-11 items-center rounded-lg border px-4 text-sm font-medium transition-colors ${
+                    skipReason === reason
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="h-12 flex-1"
+                onClick={() => setShowSkipSheet(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="h-12 flex-1"
+                onClick={handleSkip}
+                disabled={submitting}
+              >
+                {submitting ? "Skipping…" : "Skip Job"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
 }
