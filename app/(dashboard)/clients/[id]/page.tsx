@@ -9,6 +9,7 @@ import {
   Building2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { normalizeJobRows } from "@/lib/jobs"
 import { ClientStatusBadge } from "@/components/clients/client-status-badge"
 import { ClientDetailTabs } from "@/components/clients/client-detail-tabs"
 import { createClient } from "@/lib/supabase/server"
@@ -47,7 +48,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
   const [jobsResult, serviceTypesResult, propertyServicesResult] = await Promise.all([
     db
       .from("jobs")
-      .select("*, service_type:service_types(*), property:properties(*)")
+      .select("*, property:properties(*), property_service:property_services(*, service_type:service_types(*))")
       .eq("client_id", id)
       .order("service_date", { ascending: false }),
     db.from("service_types").select("*").order("name"),
@@ -59,7 +60,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
       : Promise.resolve({ data: [] }),
   ])
 
-  const jobs = (jobsResult.data ?? []) as Job[]
+  const jobs = normalizeJobRows((jobsResult.data ?? []) as Record<string, unknown>[]) as Job[]
   const serviceTypes = (serviceTypesResult.data ?? []) as ServiceType[]
   const propertyServices = (propertyServicesResult.data ?? []) as PropertyService[]
 

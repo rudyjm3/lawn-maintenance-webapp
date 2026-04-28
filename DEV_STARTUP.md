@@ -39,6 +39,7 @@ code .env.local
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Stripe dashboard → Developers → API keys |
 | `STRIPE_WEBHOOK_SECRET` | Stripe dashboard → Developers → Webhooks |
 | `RESEND_API_KEY` | resend.com account |
+| `CRON_SECRET` | Any long random string used to protect local/manual cron calls |
 | `NEXT_PUBLIC_APP_URL` | Leave as `http://localhost:3000` for local dev |
 
 ---
@@ -114,6 +115,9 @@ npm run lint
 
 # Build for production (verify it compiles)
 npm run build
+
+# Manually trigger 4-week recurring job generation
+curl -X POST http://localhost:3000/api/cron/generate-jobs -H "Authorization: Bearer $CRON_SECRET"
 ```
 
 ---

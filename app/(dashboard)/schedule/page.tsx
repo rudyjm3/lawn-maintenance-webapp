@@ -1,24 +1,41 @@
 import { WeekPlanner } from "@/components/planner/week-planner"
-import { getMockWeekSnapshot, mockJobs } from "@/lib/mock-data"
+import { formatUtcDate, startOfWeekUtc } from "@/lib/dates"
+import { buildWeekSnapshot, normalizeJobRows } from "@/lib/jobs"
+import { createClient } from "@/lib/supabase/server"
+import type { Job } from "@/types"
 
 export const metadata = { title: "Schedule" }
 
-export default function SchedulePage() {
-  // TODO: Replace with real Supabase queries:
-  // const supabase = await createClient()
-  // const { data: jobs } = await supabase
-  //   .from("jobs")
-  //   .select("*, client(*), property(*), service_type(*), crew(*)")
-  //   .gte("service_date", weekStart)
-  //   .lte("service_date", weekEnd)
-  //   .eq("business_id", tenantId)
+export default async function SchedulePage() {
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
 
-  const weekDays = getMockWeekSnapshot()
-  const unscheduled = mockJobs.filter((j) => j.status === "unscheduled")
+  const weekStart = startOfWeekUtc(new Date())
+  const rangeStart = new Date(weekStart)
+  const rangeEnd = new Date(weekStart)
+  rangeStart.setUTCDate(rangeStart.getUTCDate() - 7)
+  rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 35)
+
+  const [scheduledJobsResult, unscheduledJobsResult] = await Promise.all([
+    db
+      .from("jobs")
+      .select("*, client:clients(*), property:properties(*), property_service:property_services(*, service_type:service_types(*))")
+      .gte("service_date", formatUtcDate(rangeStart))
+      .lte("service_date", formatUtcDate(rangeEnd))
+      .eq("status", "scheduled"),
+    db
+      .from("jobs")
+      .select("*, client:clients(*), property:properties(*), property_service:property_services(*, service_type:service_types(*))")
+      .eq("status", "unscheduled"),
+  ])
+
+  const scheduledJobs = normalizeJobRows((scheduledJobsResult.data ?? []) as Record<string, unknown>[]) as Job[]
+  const unscheduled = normalizeJobRows((unscheduledJobsResult.data ?? []) as Record<string, unknown>[]) as Job[]
+  const weekDays = buildWeekSnapshot(scheduledJobs, weekStart)
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* Page header */}
       <div>
         <h1 className="text-xl font-semibold text-foreground">Schedule</h1>
         <p className="text-sm text-muted-foreground">
@@ -26,7 +43,6 @@ export default function SchedulePage() {
         </p>
       </div>
 
-      {/* Planner takes remaining height */}
       <div className="flex-1 overflow-hidden">
         <WeekPlanner initialDays={weekDays} initialUnscheduled={unscheduled} />
       </div>

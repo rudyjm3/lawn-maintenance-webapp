@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { getJobServiceLabel } from "@/lib/jobs"
 import type { Job } from "@/types"
 
 const STATUS_STYLES: Record<string, string> = {
@@ -20,13 +21,18 @@ interface JobChipProps {
   compact?: boolean
 }
 
-export function JobChip({ job, draggable = false, onDragStart, onDragEnd, compact = false }: JobChipProps) {
+export function JobChip({
+  job,
+  draggable = false,
+  onDragStart,
+  onDragEnd,
+  compact = false,
+}: JobChipProps) {
   const style = STATUS_STYLES[job.status] ?? STATUS_STYLES.scheduled
   const durationH = Math.floor(job.estimated_duration_min / 60)
   const durationM = job.estimated_duration_min % 60
-  const durationLabel = durationH > 0
-    ? `${durationH}h${durationM > 0 ? ` ${durationM}m` : ""}`
-    : `${durationM}m`
+  const durationLabel =
+    durationH > 0 ? `${durationH}h${durationM > 0 ? ` ${durationM}m` : ""}` : `${durationM}m`
 
   return (
     <div
@@ -39,10 +45,10 @@ export function JobChip({ job, draggable = false, onDragStart, onDragEnd, compac
         style,
       )}
     >
-      <p className="truncate font-medium leading-tight">{job.client?.name}</p>
+      <p className="truncate font-medium leading-tight">{job.client?.name ?? "Unknown client"}</p>
       {!compact && (
         <p className="truncate leading-tight opacity-80">
-          {job.service_type?.name} · {durationLabel}
+          {getJobServiceLabel(job)} - {durationLabel}
         </p>
       )}
     </div>
