@@ -146,18 +146,22 @@ export async function convertLeadToClient(leadId: string): Promise<LeadActionSta
 
   // Create property from service address if present
   if (lead.service_address) {
-    await db.from("properties").insert({
+    const { error: propertyError } = await db.from("properties").insert({
       business_id: businessId,
       client_id: client.id,
       address: lead.service_address,
     })
+    if (propertyError) return { success: false, message: propertyError.message }
   }
 
   // Mark lead as won
-  await db
+  const { error: leadUpdateError } = await db
     .from("leads")
     .update({ status: "won" })
     .eq("id", leadId)
+    .eq("business_id", businessId)
+
+  if (leadUpdateError) return { success: false, message: leadUpdateError.message }
 
   revalidatePath("/leads")
   revalidatePath("/clients")
