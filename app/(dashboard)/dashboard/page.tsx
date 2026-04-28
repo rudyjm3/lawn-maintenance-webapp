@@ -14,9 +14,10 @@ import { WeekSnapshot } from "@/components/dashboard/week-snapshot"
 import { RoutePreview } from "@/components/dashboard/route-preview"
 import { ActivityFeed } from "@/components/dashboard/activity-feed"
 import { Button } from "@/components/ui/button"
-import { formatLocalDate } from "@/lib/dates"
+import { addUtcDays, formatLocalDate, formatUtcDate, startOfWeekUtc } from "@/lib/dates"
+import { buildWeekSnapshot } from "@/lib/jobs"
 import { createClient } from "@/lib/supabase/server"
-import type { ActivityItem, Job, Route, RouteStop, WeekDaySnapshot } from "@/types"
+import type { ActivityItem, Job, Route, RouteStop } from "@/types"
 
 export const metadata = { title: "Dashboard" }
 
@@ -38,43 +39,6 @@ type RecentClient = {
   created_at: string
 }
 
-function isoDate(base: Date, offsetDays: number): string {
-  const d = new Date(base)
-  d.setDate(d.getDate() + offsetDays)
-  return formatLocalDate(d)
-}
-
-function getWeekStart(date: Date): Date {
-  const d = new Date(date)
-  const day = d.getDay()
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function buildWeekSnapshot(jobs: JobRow[], weekStart: Date): WeekDaySnapshot[] {
-  const labels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-  const today = formatLocalDate(new Date())
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = isoDate(weekStart, index)
-    const dayJobs = jobs.filter((job) => job.service_date === date && job.status !== "cancelled")
-    const scheduledMinutes = dayJobs.reduce((sum, job) => sum + job.estimated_duration_min, 0)
-    const d = new Date(`${date}T12:00:00`)
-
-    return {
-      date,
-      label: labels[d.getDay()],
-      isToday: date === today,
-      jobCount: dayJobs.length,
-      scheduledMinutes,
-      capacityMinutes: CAPACITY_MINUTES,
-      isOverbooked: scheduledMinutes > CAPACITY_MINUTES,
-      jobs: dayJobs,
-    }
-  })
-}
-
 function buildActivity(clients: RecentClient[]): ActivityItem[] {
   return clients.slice(0, 6).map((client) => ({
     id: client.id,
@@ -90,8 +54,8 @@ export default async function DashboardPage() {
   const db = supabase as any
 
   const today = formatLocalDate(new Date())
-  const weekStart = getWeekStart(new Date())
-  const weekEnd = isoDate(weekStart, 6)
+  const weekStart = startOfWeekUtc(new Date())
+  const weekEnd = formatUtcDate(addUtcDays(weekStart, 6))
 
   const [
     clientsCountResult,
@@ -124,7 +88,7 @@ export default async function DashboardPage() {
     db
       .from("jobs")
       .select("*, client:clients(name), property:properties(address)")
-      .gte("service_date", isoDate(weekStart, 0))
+      .gte("service_date", formatUtcDate(weekStart))
       .lte("service_date", weekEnd)
       .neq("status", "cancelled"),
     db
@@ -173,7 +137,7 @@ export default async function DashboardPage() {
     : null
   const recentClients = (recentClientsResult.data ?? []) as RecentClient[]
 
-  const week = buildWeekSnapshot(weekJobs, weekStart)
+  const week = buildWeekSnapshot(weekJobs, weekStart, CAPACITY_MINUTES)
   const activity = buildActivity(recentClients)
   const overbookedDays = week.filter((day) => day.isOverbooked)
   const todaysCompleted = todayJobs.filter((job) => job.status === "completed").length

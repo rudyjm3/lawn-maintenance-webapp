@@ -1,5 +1,5 @@
 import { WeekPlanner } from "@/components/planner/week-planner"
-import { formatLocalDate, startOfWeekUtc } from "@/lib/dates"
+import { formatUtcDate, startOfWeekUtc } from "@/lib/dates"
 import { buildWeekSnapshot, normalizeJobRows } from "@/lib/jobs"
 import { createClient } from "@/lib/supabase/server"
 import type { Job } from "@/types"
@@ -21,8 +21,8 @@ export default async function SchedulePage() {
     db
       .from("jobs")
       .select("*, client:clients(*), property:properties(*), property_service:property_services(*, service_type:service_types(*))")
-      .gte("service_date", formatLocalDate(rangeStart))
-      .lte("service_date", formatLocalDate(rangeEnd))
+      .gte("service_date", formatUtcDate(rangeStart))
+      .lte("service_date", formatUtcDate(rangeEnd))
       .eq("status", "scheduled"),
     db
       .from("jobs")

@@ -12,18 +12,19 @@ export function WeekSnapshot({ days }: WeekSnapshotProps) {
       <div className="flex gap-2">
         {days.map((day) => {
           const pct = Math.min(100, Math.round((day.scheduledMinutes / day.capacityMinutes) * 100))
+          const dayOfMonth = Number.parseInt(day.date.slice(-2), 10)
+
           return (
             <div key={day.date} className="flex flex-1 flex-col items-center gap-1.5">
               <span
                 className={cn(
-                  "text-xs font-medium",
+                  "text-center text-xs font-medium",
                   day.isToday ? "text-primary" : "text-muted-foreground",
                 )}
               >
-                {day.label}
+                {day.label} {dayOfMonth}
               </span>
 
-              {/* Bar */}
               <div className="relative h-24 w-full overflow-hidden rounded-md bg-muted">
                 <div
                   className={cn(
@@ -36,21 +37,24 @@ export function WeekSnapshot({ days }: WeekSnapshotProps) {
                   )}
                   style={{ height: `${pct}%` }}
                 />
-                {day.isToday && (
-                  <div className="absolute inset-0 ring-2 ring-inset ring-primary rounded-md" />
-                )}
+                {day.isToday && <div className="absolute inset-0 rounded-md ring-2 ring-inset ring-primary" />}
               </div>
 
-              {/* Job count */}
-              <span className="text-xs text-muted-foreground">
-                {day.jobCount > 0 ? `${day.jobCount}j` : "–"}
-              </span>
+              {day.jobCount > 0 ? (
+                <div className="flex flex-col items-center leading-none">
+                  <span className="text-xs font-semibold text-foreground">{day.jobCount}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {day.jobCount === 1 ? "job" : "jobs"}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">-</span>
+              )}
             </div>
           )
         })}
       </div>
 
-      {/* Legend */}
       <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2 w-3 rounded-sm bg-primary/70" /> On track

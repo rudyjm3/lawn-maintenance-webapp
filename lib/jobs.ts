@@ -64,7 +64,7 @@ export function buildWeekSnapshot(
   const today = formatLocalDate(new Date())
 
   return Array.from({ length: 7 }, (_, index) => {
-    const date = formatLocalDate(addUtcDays(weekStart, index))
+    const date = formatUtcDate(addUtcDays(weekStart, index))
     const dayJobs = jobs.filter((job) => job.service_date === date && job.status !== "cancelled")
     const scheduledMinutes = dayJobs.reduce((sum, job) => sum + job.estimated_duration_min, 0)
     const dateObject = parseUtcDate(date)
