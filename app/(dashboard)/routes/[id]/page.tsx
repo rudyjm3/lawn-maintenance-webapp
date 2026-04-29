@@ -9,6 +9,7 @@ import { RouteMap } from "@/components/routes/route-map"
 import { RouteLockToggle } from "@/components/routes/route-lock-toggle"
 import { RouteRecalculateButton } from "@/components/routes/route-recalculate-button"
 import { AddStopsPanel } from "@/components/routes/add-stops-panel"
+import { RouteCrewSelect } from "@/components/routes/route-crew-select"
 import type { Route, RouteStop } from "@/types"
 
 interface PageProps {
@@ -81,11 +82,19 @@ export default async function RouteDetailPage({ params }: PageProps) {
 
   // Jobs scheduled for this route's date that aren't already stops on this route
   const routedJobIds = new Set(stops.map((s) => s.job_id).filter(Boolean))
-  const { data: unroutedJobsData } = await db
-    .from("jobs")
-    .select("id, client:clients(id, name), property:properties(id, address), property_service:property_services(service_type:service_types(id, name)), estimated_duration_min")
-    .eq("service_date", typedRoute.route_date)
-    .neq("status", "cancelled")
+
+  const [unroutedJobsResult, crewsResult] = await Promise.all([
+    db
+      .from("jobs")
+      .select("id, client:clients(id, name), property:properties(id, address), property_service:property_services(service_type:service_types(id, name)), estimated_duration_min")
+      .eq("service_date", typedRoute.route_date)
+      .neq("status", "cancelled"),
+    db
+      .from("crews")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name", { ascending: true }),
+  ])
 
   type UnroutedJob = {
     id: string
@@ -94,9 +103,10 @@ export default async function RouteDetailPage({ params }: PageProps) {
     property: { id: string; address: string | null } | null
     property_service: { service_type: { id: string; name: string } | null } | null
   }
-  const unroutedJobs = ((unroutedJobsData ?? []) as UnroutedJob[]).filter(
+  const unroutedJobs = ((unroutedJobsResult.data ?? []) as UnroutedJob[]).filter(
     (j) => !routedJobIds.has(j.id),
   )
+  const crews = (crewsResult.data ?? []) as { id: string; name: string }[]
 
   const mapStops = stops
     .filter((s) => s.job?.property?.lat != null && s.job?.property?.lng != null)
@@ -123,9 +133,12 @@ export default async function RouteDetailPage({ params }: PageProps) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-xl font-semibold text-foreground">
-                {typedRoute.crew?.name ?? "Unassigned Crew"}
-              </h1>
+              <RouteCrewSelect
+                routeId={typedRoute.id}
+                currentCrewId={typedRoute.crew_id ?? null}
+                crews={crews}
+                isLocked={typedRoute.is_locked}
+              />
               {typedRoute.is_locked ? (
                 <Badge variant="outline">Locked</Badge>
               ) : (

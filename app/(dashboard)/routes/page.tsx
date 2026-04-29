@@ -3,6 +3,7 @@ import { MapPin, Navigation } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { formatDuration } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
+import { NewRouteDialog } from "@/components/routes/new-route-dialog"
 
 export const dynamic = "force-dynamic"
 export const metadata = { title: "Route Planner" }
@@ -31,12 +32,22 @@ export default async function RoutesPage() {
   const startIso = rangeStart.toISOString().slice(0, 10)
   const endIso = rangeEnd.toISOString().slice(0, 10)
 
-  const { data, error } = await db
-    .from("routes")
-    .select("id, route_date, total_job_min, total_drive_min, is_locked, crew:crews(id, name)")
-    .gte("route_date", startIso)
-    .lte("route_date", endIso)
-    .order("route_date", { ascending: true })
+  const [routesResult, crewsResult] = await Promise.all([
+    db
+      .from("routes")
+      .select("id, route_date, total_job_min, total_drive_min, is_locked, crew:crews(id, name)")
+      .gte("route_date", startIso)
+      .lte("route_date", endIso)
+      .order("route_date", { ascending: true }),
+    db
+      .from("crews")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name", { ascending: true }),
+  ])
+
+  const { data, error } = routesResult
+  const crews = (crewsResult.data ?? []) as { id: string; name: string }[]
 
   if (error) {
     return (
@@ -50,11 +61,14 @@ export default async function RoutesPage() {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Route Planner</h1>
-        <p className="text-sm text-muted-foreground">
-          Routes for the current planning window.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Route Planner</h1>
+          <p className="text-sm text-muted-foreground">
+            Routes for the current planning window.
+          </p>
+        </div>
+        <NewRouteDialog crews={crews} />
       </div>
 
       {routes.length === 0 ? (

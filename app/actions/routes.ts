@@ -214,6 +214,41 @@ export async function createRoute(values: {
   return { success: true, message: "Route created.", routeId: data.id }
 }
 
+// ─── Update crew ─────────────────────────────────────────────────────────────
+
+export async function updateRouteCrew(
+  routeId: string,
+  crewId: string,
+): Promise<RouteActionState> {
+  const supabase = await createClient()
+  const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  const { data: route } = await db
+    .from("routes")
+    .select("is_locked")
+    .eq("id", routeId)
+    .eq("business_id", businessId)
+    .single()
+
+  if (route?.is_locked) return { success: false, message: "Cannot edit a locked route." }
+
+  const { error } = await db
+    .from("routes")
+    .update({ crew_id: crewId })
+    .eq("id", routeId)
+    .eq("business_id", businessId)
+
+  if (error) return { success: false, message: error.message }
+  revalidatePath("/routes")
+  revalidatePath(`/routes/${routeId}`)
+  revalidatePath("/dashboard")
+  return { success: true, message: "Crew updated." }
+}
+
 // ─── Recalculate drive times ──────────────────────────────────────────────────
 
 export async function recalculateDriveTimes(
