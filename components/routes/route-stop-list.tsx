@@ -156,8 +156,12 @@ export function RouteStopList({ routeId, stops: initialStops, isLocked }: RouteS
                     {formatDuration(job.estimated_duration_min)} job
                   </span>
                 )}
-                {stop.travel_time_min > 0 && (
-                  <span>+{formatDuration(stop.travel_time_min)} drive</span>
+                {index === 0 ? (
+                  <span className="text-muted-foreground/50">first stop</span>
+                ) : (
+                  <span className={stop.travel_time_min > 0 ? "" : "text-muted-foreground/50"}>
+                    {stop.travel_time_min > 0 ? `+${formatDuration(stop.travel_time_min)} drive` : "+— drive"}
+                  </span>
                 )}
                 {stop.est_arrival && (
                   <span>ETA {formatTime(stop.est_arrival)}</span>

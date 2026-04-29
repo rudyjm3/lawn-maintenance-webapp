@@ -102,8 +102,8 @@ export default async function RoutesPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3">{route.crew?.name ?? "Unassigned"}</td>
-                  <td className="px-4 py-3">{formatDuration(route.total_job_min ?? 0)}</td>
-                  <td className="px-4 py-3">{formatDuration(route.total_drive_min ?? 0)}</td>
+                  <td className="px-4 py-3">{route.total_job_min > 0 ? formatDuration(route.total_job_min) : "—"}</td>
+                  <td className="px-4 py-3">{route.total_drive_min > 0 ? formatDuration(route.total_drive_min) : "—"}</td>
                   <td className="px-4 py-3">
                     {route.is_locked ? (
                       <Badge variant="outline">Locked</Badge>

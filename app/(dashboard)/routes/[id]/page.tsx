@@ -176,6 +176,16 @@ export default async function RouteDetailPage({ params }: PageProps) {
         </div>
       </div>
 
+      {/* ── Drive time nudge ── */}
+      {stops.length >= 2 && (typedRoute.total_drive_min ?? 0) === 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          Drive times haven&apos;t been calculated yet.
+          {mapStops.length < 2
+            ? " Geocode your properties in Settings, then click Recalculate."
+            : " Click Recalculate to compute drive times between stops."}
+        </div>
+      )}
+
       {/* ── Map + stop list ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-4">
