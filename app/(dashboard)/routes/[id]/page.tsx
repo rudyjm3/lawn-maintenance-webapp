@@ -55,7 +55,7 @@ export default async function RouteDetailPage({ params }: PageProps) {
           *,
           client:clients(id, name),
           property:properties(id, address, lat, lng),
-          service_type:service_types(id, name)
+          property_service:property_services(service_type:service_types(id, name))
         )
       )
     `)
@@ -65,9 +65,17 @@ export default async function RouteDetailPage({ params }: PageProps) {
   if (error || !route) notFound()
 
   const typedRoute = route as Route
-  const stops = ((typedRoute.stops ?? []) as RouteStop[]).sort(
-    (a, b) => a.stop_order - b.stop_order,
-  )
+
+  // Normalize service_type onto job so RouteStopList can read job.service_type.name
+  const stops = ((typedRoute.stops ?? []) as RouteStop[])
+    .sort((a, b) => a.stop_order - b.stop_order)
+    .map((stop) => {
+      if (stop.job && !stop.job.service_type) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        stop.job.service_type = (stop.job as any).property_service?.service_type ?? undefined
+      }
+      return stop
+    })
 
   const mapStops = stops
     .filter((s) => s.job?.property?.lat != null && s.job?.property?.lng != null)
