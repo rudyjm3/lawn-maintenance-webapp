@@ -76,17 +76,27 @@ export async function getSequentialDriveTimes(
         origins,
         destinations,
         travelMode: "DRIVE",
-        routingPreference: "TRAFFIC_AWARE",
+        routingPreference: "TRAFFIC_UNAWARE",
       }),
       cache: "no-store",
     })
 
+    const rawText = await res.text()
     if (!res.ok) {
-      console.error("Routes API error:", res.status, await res.text())
+      console.error("Routes API error:", res.status, rawText)
       return null
     }
 
-    const elements = (await res.json()) as RouteMatrixElement[]
+    let elements: RouteMatrixElement[]
+    try {
+      const parsed = JSON.parse(rawText)
+      // API may return a top-level array or an object with elements nested inside
+      elements = Array.isArray(parsed) ? parsed : (parsed.elements ?? parsed.rows ?? [])
+      console.log("Routes API elements:", JSON.stringify(elements))
+    } catch {
+      console.error("Routes API parse error:", rawText)
+      return null
+    }
 
     // First stop has no prior stop — travel time is 0
     const travelMinutes: number[] = [0]
