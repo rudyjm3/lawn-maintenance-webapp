@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
@@ -73,6 +72,7 @@ export function CrewSheet({ open, onOpenChange, crew, allUsers }: CrewSheetProps
     defaultValues: { name: "", description: "", is_active: true },
   })
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const isActive = watch("is_active")
 
   // Seed form when opening

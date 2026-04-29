@@ -10,7 +10,7 @@ interface KpiCardProps {
   className?: string
 }
 
-export function KpiCard({ title, value, sub, icon: Icon, trend, className }: KpiCardProps) {
+export function KpiCard({ title, value, sub, icon: Icon, className }: KpiCardProps) {
   return (
     <div className={cn("rounded-xl border border-border bg-card p-5", className)}>
       <div className="flex items-start justify-between">

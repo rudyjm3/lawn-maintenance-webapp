@@ -19,6 +19,7 @@ import { buildWeekSnapshot } from "@/lib/jobs"
 import { createClient } from "@/lib/supabase/server"
 import type { ActivityItem, Job, Route, RouteStop } from "@/types"
 
+export const dynamic = "force-dynamic"
 export const metadata = { title: "Dashboard" }
 
 const CAPACITY_MINUTES = 480
@@ -66,7 +67,7 @@ export default async function DashboardPage() {
     todayJobsResult,
     weekJobsResult,
     unscheduledJobsResult,
-    todayRouteResult,
+    todayRoutesResult,
     recentClientsResult,
   ] = await Promise.all([
     db.from("clients").select("id", { count: "exact", head: true }),
@@ -110,8 +111,7 @@ export default async function DashboardPage() {
         )
       `)
       .eq("route_date", today)
-      .limit(1)
-      .maybeSingle(),
+      .order("created_at", { ascending: true }),
     db
       .from("clients")
       .select("id, name, created_at")
@@ -127,14 +127,10 @@ export default async function DashboardPage() {
   const todayJobs = (todayJobsResult.data ?? []) as JobRow[]
   const weekJobs = (weekJobsResult.data ?? []) as JobRow[]
   const unassignedCount = unscheduledJobsResult.count ?? 0
-  const todayRoute = todayRouteResult.data
-    ? ({
-        ...todayRouteResult.data,
-        stops: [...(todayRouteResult.data.stops ?? [])].sort(
-          (a, b) => a.stop_order - b.stop_order,
-        ),
-      } as TodayRoute)
-    : null
+  const todayRoutes = ((todayRoutesResult.data ?? []) as TodayRoute[]).map((r) => ({
+    ...r,
+    stops: [...(r.stops ?? [])].sort((a, b) => a.stop_order - b.stop_order),
+  }))
   const recentClients = (recentClientsResult.data ?? []) as RecentClient[]
 
   const week = buildWeekSnapshot(weekJobs, weekStart, CAPACITY_MINUTES)
@@ -220,8 +216,12 @@ export default async function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-        <div className="lg:col-span-3">
-          <RoutePreview route={todayRoute} />
+        <div className="lg:col-span-3 space-y-4">
+          {todayRoutes.length === 0 ? (
+            <RoutePreview route={null} />
+          ) : (
+            todayRoutes.map((r) => <RoutePreview key={r.id} route={r} />)
+          )}
         </div>
         <div className="lg:col-span-2">
           <WeekSnapshot days={week} />

@@ -4,25 +4,13 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import { Clock, MapPin, ChevronDown, ChevronUp } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { todayUtc } from "@/lib/dates"
+import { todayUtc, formatDuration, formatTime } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = "completed" | "skipped"
-
-function formatTime(iso: string | null): string {
-  if (!iso) return "—"
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-}
-
-function formatDuration(minutes: number | null): string {
-  if (!minutes) return "—"
-  if (minutes < 60) return `${minutes}m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
-}
 
 // ─── History Card ─────────────────────────────────────────────────────────────
 
@@ -126,6 +114,7 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState<string | null>(null)
   const [tab, setTab]       = useState<Tab>("completed")
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -136,11 +125,16 @@ export default function HistoryPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setError("Not signed in."); setLoading(false); return }
 
-      const { data: userData } = await db
+      const { data: userData, error: userDataError } = await db
         .from("users")
         .select("id, business_id, crew_members(crew_id)")
         .eq("auth_user_id", user.id)
         .single()
+      if (userDataError || !userData) {
+        setError(userDataError?.message ?? "Could not load your crew assignment.")
+        setLoading(false)
+        return
+      }
 
       const crewIds: string[] = (userData?.crew_members ?? []).map(
         (cm: { crew_id: string }) => cm.crew_id,
@@ -150,12 +144,17 @@ export default function HistoryPage() {
       const today = todayUtc()
 
       // Get today's route
-      const { data: route } = await db
+      const { data: route, error: routeError } = await db
         .from("routes")
         .select("id")
         .in("crew_id", crewIds)
         .eq("route_date", today)
         .maybeSingle()
+      if (routeError) {
+        setError(routeError.message)
+        setLoading(false)
+        return
+      }
 
       if (!route) { setLoading(false); return }
 
@@ -185,7 +184,7 @@ export default function HistoryPage() {
     }
 
     load()
-  }, [])
+  }, [reloadKey])
 
   const filtered = stops.filter((s) => s.status === tab)
 
@@ -202,6 +201,9 @@ export default function HistoryPage() {
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
         <MapPin className="h-10 w-10 text-muted-foreground" />
         <p className="text-base font-medium">{error}</p>
+        <Button variant="outline" onClick={() => setReloadKey((v) => v + 1)}>
+          Retry
+        </Button>
       </div>
     )
   }
@@ -210,9 +212,9 @@ export default function HistoryPage() {
     <div className="flex flex-col">
       {/* Header */}
       <div className="sticky top-0 z-10 border-b border-border bg-background px-4 py-4">
-        <h1 className="text-lg font-semibold text-foreground">Today's History</h1>
+        <h1 className="text-lg font-semibold text-foreground">Today&apos;s History</h1>
         <p className="text-sm text-muted-foreground">
-          {stops.filter((s) => s.status === "completed").length} completed ·{" "}
+          {stops.filter((s) => s.status === "completed").length} completed -{" "}
           {stops.filter((s) => s.status === "skipped").length} skipped
         </p>
       </div>
@@ -241,6 +243,9 @@ export default function HistoryPage() {
           <p className="text-sm text-muted-foreground">
             No {tab} jobs yet today.
           </p>
+          <p className="text-xs text-muted-foreground">
+            Complete or skip route stops in Today view to see them here.
+          </p>
         </div>
       ) : (
         <div>
@@ -252,3 +257,4 @@ export default function HistoryPage() {
     </div>
   )
 }
+

@@ -114,7 +114,7 @@ function buildOccurrenceDates(
     .map((exception) => exception.new_date as string)
     .filter((date) => date >= startDate && date <= endDate)
 
-  return [...baseDates, ...rescheduledDates]
+  return [...new Set([...baseDates, ...rescheduledDates])]
 }
 
 export async function generateJobsForBusinessLookahead(
@@ -150,7 +150,7 @@ export async function generateJobsForBusinessLookahead(
   const propertyServiceIds = recurringPropertyServices.map((propertyService) => propertyService.id)
   const { data: existingJobs, error: existingJobsError } = await supabase
     .from("jobs")
-    .select("id, property_service_id, service_date, status")
+    .select("id, property_service_id, service_date, status, route_stops(id)")
     .eq("business_id", businessId)
     .in("property_service_id", propertyServiceIds)
     .gte("service_date", startDate)
@@ -165,6 +165,7 @@ export async function generateJobsForBusinessLookahead(
     property_service_id: string | null
     service_date: string | null
     status: string
+    route_stops: { id: string }[]
   }>
   const existingKeys = new Set(
     existingRows
@@ -208,6 +209,7 @@ export async function generateJobsForBusinessLookahead(
     .filter((job) => !!job.property_service_id && !!job.service_date)
     .filter((job) => !validKeys.has(`${job.property_service_id}:${job.service_date}`))
     .filter((job) => job.status === "scheduled")
+    .filter((job) => (job.route_stops?.length ?? 0) === 0) // never delete routed jobs
     .map((job) => job.id)
 
   if (invalidExistingIds.length > 0) {

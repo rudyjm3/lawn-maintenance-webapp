@@ -21,6 +21,8 @@ export default function ProfilePage() {
   const [crews, setCrews]         = useState<any[]>([])
   const [loading, setLoading]     = useState(true)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   const router = useRouter()
 
   useEffect(() => {
@@ -32,11 +34,16 @@ export default function ProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
 
-      const { data: userRow } = await db
+      const { data: userRow, error: userRowError } = await db
         .from("users")
         .select("id, first_name, last_name, role, business_id, crew_members(crew_id, is_lead, crew:crews(id, name, is_active))")
         .eq("auth_user_id", user.id)
         .single()
+      if (userRowError || !userRow) {
+        setError(userRowError?.message ?? "Could not load your profile.")
+        setLoading(false)
+        return
+      }
 
       setUserData(userRow)
       const crewList = (userRow?.crew_members ?? [])
@@ -49,7 +56,7 @@ export default function ProfilePage() {
     }
 
     load()
-  }, [])
+  }, [reloadKey])
 
   async function handleLogout() {
     setLoggingOut(true)
@@ -69,6 +76,18 @@ export default function ProfilePage() {
   const initials = userData
     ? `${userData.first_name?.[0] ?? ""}${userData.last_name?.[0] ?? ""}`.toUpperCase()
     : "?"
+
+  if (error) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
+        <User className="h-10 w-10 text-muted-foreground" />
+        <p className="text-base font-medium">{error}</p>
+        <Button variant="outline" onClick={() => setReloadKey((v) => v + 1)}>
+          Retry
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-0">
@@ -117,6 +136,16 @@ export default function ProfilePage() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      {userData && crews.length === 0 && (
+        <div className="px-4 py-4 border-b border-border">
+          <div className="rounded-lg border border-dashed border-border px-3 py-4 text-center">
+            <p className="text-sm font-medium text-foreground">No active crew assignments.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ask a manager to assign you to a crew so route and history views populate.
+            </p>
           </div>
         </div>
       )}

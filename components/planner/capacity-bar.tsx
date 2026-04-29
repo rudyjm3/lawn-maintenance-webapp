@@ -7,8 +7,9 @@ interface CapacityBarProps {
 }
 
 export function CapacityBar({ scheduledMinutes, capacityMinutes, showLabel = true }: CapacityBarProps) {
-  const pct = Math.min(100, Math.round((scheduledMinutes / capacityMinutes) * 100))
-  const isOverbooked = scheduledMinutes > capacityMinutes
+  const safeCapacity = Math.max(1, capacityMinutes)
+  const pct = Math.min(100, Math.round((scheduledMinutes / safeCapacity) * 100))
+  const isOverbooked = scheduledMinutes > safeCapacity
   const h = Math.floor(scheduledMinutes / 60)
   const m = scheduledMinutes % 60
 
@@ -20,7 +21,7 @@ export function CapacityBar({ scheduledMinutes, capacityMinutes, showLabel = tru
             {h}h{m > 0 ? ` ${m}m` : ""}
           </span>
           <span className={cn(isOverbooked ? "text-destructive font-semibold" : "text-muted-foreground")}>
-            {isOverbooked ? `+${Math.round((scheduledMinutes - capacityMinutes) / 60 * 10) / 10}h over` : `${pct}%`}
+            {isOverbooked ? `+${Math.round((scheduledMinutes - safeCapacity) / 60 * 10) / 10}h over` : `${pct}%`}
           </span>
         </div>
       )}

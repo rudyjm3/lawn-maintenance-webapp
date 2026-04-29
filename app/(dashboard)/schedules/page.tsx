@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation"
+
 export default function SchedulesPage() {
-  return <div className="p-8 text-lg font-medium">Schedules</div>
+  redirect("/schedule")
 }

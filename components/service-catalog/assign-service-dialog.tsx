@@ -73,6 +73,7 @@ export function AssignServiceDialog({
     },
   })
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const watchedTypeId = watch("service_type_id")
   const isActive = watch("is_active")
 

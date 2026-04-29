@@ -1,30 +1,14 @@
 import Link from "next/link"
 import { MapPin, Clock, Navigation, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
-import { todayUtc } from "@/lib/dates"
+import { todayUtc, formatDuration } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { STOP_STATUS_BADGE, type StopStatus } from "@/components/crew/stop-status"
+import { CrewRoutePicker } from "@/components/crew/crew-route-picker"
 
+export const dynamic = "force-dynamic"
 export const metadata = { title: "Today's Route" }
-
-// ─── Status helpers ───────────────────────────────────────────────────────────
-
-type StopStatus = "pending" | "arrived" | "in_progress" | "completed" | "skipped"
-
-const STATUS_BADGE: Record<StopStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  pending:     { label: "Pending",     variant: "secondary" },
-  arrived:     { label: "Arrived",     variant: "default" },
-  in_progress: { label: "In Progress", variant: "default" },
-  completed:   { label: "Done",        variant: "outline" },
-  skipped:     { label: "Skipped",     variant: "destructive" },
-}
-
-function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
-}
 
 function formatDate(isoDate: string): string {
   const [year, month, day] = isoDate.split("-").map(Number)
@@ -42,13 +26,21 @@ function EmptyState({ message }: { message: string }) {
       </div>
       <p className="text-base font-medium text-foreground">{message}</p>
       <p className="text-sm text-muted-foreground">Check back later or contact your manager.</p>
+      <Button variant="outline" asChild>
+        <Link href="/crew/today">Retry</Link>
+      </Button>
     </div>
   )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function TodayPage() {
+export default async function TodayPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ routeId?: string }>
+}) {
+  const { routeId: selectedRouteId } = await searchParams
   const supabase = await createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -59,11 +51,14 @@ export default async function TodayPage() {
 
   if (!user) return <EmptyState message="Not signed in." />
 
-  const { data: userData } = await db
+  const { data: userData, error: userDataError } = await db
     .from("users")
     .select("id, first_name, last_name, business_id, crew_members(crew_id)")
     .eq("auth_user_id", user.id)
     .single()
+  if (userDataError) {
+    return <EmptyState message={userDataError.message} />
+  }
 
   const crewIds: string[] = (userData?.crew_members ?? []).map((cm: { crew_id: string }) => cm.crew_id)
 
@@ -73,7 +68,7 @@ export default async function TodayPage() {
 
   const today = todayUtc()
 
-  const { data: routeRows } = await db
+  const { data: routeRows, error: routeRowsError } = await db
     .from("routes")
     .select(`
       id, route_date, total_job_min, total_drive_min, is_locked,
@@ -95,10 +90,31 @@ export default async function TodayPage() {
     .in("crew_id", crewIds)
     .eq("route_date", today)
     .order("created_at")
+  if (routeRowsError) {
+    return <EmptyState message={routeRowsError.message} />
+  }
 
-  // Take the first route for today; in multi-crew setups the owner controls which
-  // routes are created — crew members are typically assigned to one active route per day
-  const route = (routeRows ?? [])[0] ?? null
+  const allRoutes = routeRows ?? []
+
+  // If the user is on multiple crews with routes today, show a picker
+  if (allRoutes.length > 1 && !selectedRouteId) {
+    return (
+      <CrewRoutePicker
+        routes={allRoutes.map((r: { id: string; crew: { name: string } | null; total_job_min: number; total_drive_min: number; route_stops: unknown[] }) => ({
+          id: r.id,
+          crew: r.crew,
+          total_job_min: r.total_job_min,
+          total_drive_min: r.total_drive_min,
+          stopCount: r.route_stops?.length ?? 0,
+        }))}
+        href="/crew/today"
+      />
+    )
+  }
+
+  const route = selectedRouteId
+    ? (allRoutes.find((r: { id: string }) => r.id === selectedRouteId) ?? allRoutes[0] ?? null)
+    : (allRoutes[0] ?? null)
 
   if (!route) {
     return <EmptyState message="No route scheduled for today." />
@@ -143,10 +159,12 @@ export default async function TodayPage() {
             <Clock className="h-3 w-3" />
             {formatDuration(route.total_job_min ?? 0)} job time
           </span>
-          <span className="flex items-center gap-1">
-            <Navigation className="h-3 w-3" />
-            {formatDuration(route.total_drive_min ?? 0)} drive time
-          </span>
+          {(route.total_drive_min ?? 0) > 0 && (
+            <span className="flex items-center gap-1">
+              <Navigation className="h-3 w-3" />
+              {formatDuration(route.total_drive_min)} drive time
+            </span>
+          )}
         </div>
       </div>
 
@@ -158,7 +176,7 @@ export default async function TodayPage() {
           const property = job?.property
           const svc      = job?.property_service?.service_type
 
-          const statusInfo = STATUS_BADGE[stop.status as StopStatus] ?? STATUS_BADGE.pending
+          const statusInfo = STOP_STATUS_BADGE[stop.status as StopStatus] ?? STOP_STATUS_BADGE.pending
           const isDone     = stop.status === "completed" || stop.status === "skipped"
           const mapsUrl    = property?.address
             ? `https://maps.google.com/?q=${encodeURIComponent(property.address)}`
@@ -187,7 +205,7 @@ export default async function TodayPage() {
                     {property?.address ?? "No address"}
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {svc?.name ?? "Service"} · {formatDuration(job?.estimated_duration_min ?? 0)}
+                    {svc?.name ?? "Service"} - {formatDuration(job?.estimated_duration_min ?? 0)}
                   </p>
                 </div>
               </div>
@@ -240,3 +258,4 @@ export default async function TodayPage() {
     </div>
   )
 }
+

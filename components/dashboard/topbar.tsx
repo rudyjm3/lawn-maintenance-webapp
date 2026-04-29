@@ -1,5 +1,6 @@
 "use client"
 
+import { useTransition } from "react"
 import { Bell, Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,14 +15,29 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { generateDemoJobsAndRoutes } from "@/app/actions/demo"
 
 export function Topbar() {
   const router = useRouter()
+  const [isGeneratingDemo, startDemoGeneration] = useTransition()
 
   async function handleSignOut() {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push("/login")
+  }
+
+  function handleGenerateDemo() {
+    startDemoGeneration(async () => {
+      const result = await generateDemoJobsAndRoutes()
+      if (!result.success) {
+        toast.error(result.message)
+        return
+      }
+      toast.success(result.message)
+      router.refresh()
+    })
   }
 
   return (
@@ -56,6 +72,10 @@ export function Topbar() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/leads?new=1")}>
               Lead
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleGenerateDemo} disabled={isGeneratingDemo}>
+              {isGeneratingDemo ? "Generating Demo..." : "Generate Demo Jobs/Routes"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

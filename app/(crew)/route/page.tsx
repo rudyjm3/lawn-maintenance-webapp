@@ -1,36 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { MapPin, Clock, Navigation, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
+import { MapPin, Clock, Navigation, ChevronDown, ChevronUp, ExternalLink, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { todayUtc } from "@/lib/dates"
+import { todayUtc, formatDuration, formatTime } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type StopStatus = "pending" | "arrived" | "in_progress" | "completed" | "skipped"
-
-const STATUS_BADGE: Record<StopStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-  pending:     { label: "Pending",     variant: "secondary" },
-  arrived:     { label: "Arrived",     variant: "default" },
-  in_progress: { label: "In Progress", variant: "default" },
-  completed:   { label: "Done",        variant: "outline" },
-  skipped:     { label: "Skipped",     variant: "destructive" },
-}
-
-function formatDuration(minutes: number): string {
-  if (!minutes) return "0m"
-  if (minutes < 60) return `${minutes}m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
-}
-
-function formatTime(isoDatetime: string | null): string {
-  if (!isoDatetime) return "—"
-  return new Date(isoDatetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-}
+import { STOP_STATUS_BADGE, type StopStatus } from "@/components/crew/stop-status"
+import { Button } from "@/components/ui/button"
 
 // ─── Stop card (with collapsible access notes) ────────────────────────────────
 
@@ -43,7 +21,7 @@ function StopCard({ stop }: { stop: any }) {
   const property = job?.property
   const svc      = job?.property_service?.service_type
   const isDone   = stop.status === "completed" || stop.status === "skipped"
-  const statusInfo = STATUS_BADGE[stop.status as StopStatus] ?? STATUS_BADGE.pending
+  const statusInfo = STOP_STATUS_BADGE[stop.status as StopStatus] ?? STOP_STATUS_BADGE.pending
   const hasAccessInfo = property?.access_notes || property?.gate_code || property?.pet_notes
   const mapsUrl = property?.address
     ? `https://maps.google.com/?q=${encodeURIComponent(property.address)}`
@@ -149,10 +127,16 @@ function StopCard({ stop }: { stop: any }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RoutePage() {
+  const searchParams = useSearchParams()
+  const selectedRouteId = searchParams.get("routeId")
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [route, setRoute] = useState<any | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [allRoutes, setAllRoutes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -163,11 +147,16 @@ export default function RoutePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setError("Not signed in."); setLoading(false); return }
 
-      const { data: userData } = await db
+      const { data: userData, error: userDataError } = await db
         .from("users")
         .select("id, business_id, crew_members(crew_id)")
         .eq("auth_user_id", user.id)
         .single()
+      if (userDataError || !userData) {
+        setError(userDataError?.message ?? "Could not load your crew assignment.")
+        setLoading(false)
+        return
+      }
 
       const crewIds: string[] = (userData?.crew_members ?? []).map(
         (cm: { crew_id: string }) => cm.crew_id,
@@ -200,12 +189,17 @@ export default function RoutePage() {
         .order("created_at")
 
       if (routeError) { setError(routeError.message); setLoading(false); return }
-      setRoute((routeRows ?? [])[0] ?? null)
+      const rows = routeRows ?? []
+      setAllRoutes(rows)
+      const picked = selectedRouteId
+        ? (rows.find((r: { id: string }) => r.id === selectedRouteId) ?? rows[0] ?? null)
+        : (rows[0] ?? null)
+      setRoute(picked)
       setLoading(false)
     }
 
     load()
-  }, [])
+  }, [reloadKey])
 
   if (loading) {
     return (
@@ -215,13 +209,66 @@ export default function RoutePage() {
     )
   }
 
-  if (error || !route) {
+  if (error) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
           <MapPin className="h-8 w-8 text-muted-foreground" />
         </div>
-        <p className="text-base font-medium">{error ?? "No route for today."}</p>
+        <p className="text-base font-medium">{error}</p>
+        <Button variant="outline" onClick={() => setReloadKey((v) => v + 1)}>
+          Retry
+        </Button>
+      </div>
+    )
+  }
+
+  // Multiple crews with routes today — show picker
+  if (!route && allRoutes.length > 1) {
+    return (
+      <div className="flex min-h-[60vh] flex-col justify-center gap-4 px-6 py-8">
+        <div className="text-center">
+          <p className="text-base font-semibold text-foreground">You&apos;re on multiple crews today.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Pick the route you&apos;re running.</p>
+        </div>
+        <div className="space-y-3">
+          {allRoutes.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setRoute(r)}
+              className="flex w-full items-center gap-4 rounded-xl border border-border bg-card p-4 hover:bg-muted/40 transition-colors text-left"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <MapPin className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-foreground">{r.crew?.name ?? "Unassigned"}</p>
+                <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
+                  <span>{r.route_stops?.length ?? 0} stops</span>
+                  {r.total_job_min > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {formatDuration(r.total_job_min)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!route) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-6 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+          <MapPin className="h-8 w-8 text-muted-foreground" />
+        </div>
+        <p className="text-base font-medium">No route for today.</p>
+        <p className="text-sm text-muted-foreground">Check back later or contact your manager.</p>
       </div>
     )
   }
@@ -235,7 +282,7 @@ export default function RoutePage() {
 
   // Estimate finish from last stop
   const lastStop   = stops[stops.length - 1]
-  const finishTime = lastStop?.est_finish ? formatTime(lastStop.est_finish) : "—"
+  const finishTime = lastStop?.est_finish ? formatTime(lastStop.est_finish) : "--"
 
   return (
     <div className="flex flex-col">
@@ -275,13 +322,16 @@ export default function RoutePage() {
             <Clock className="h-3.5 w-3.5" />
             {formatDuration(route.total_job_min ?? 0)} job time
           </span>
-          <span className="flex items-center gap-1">
-            <Navigation className="h-3.5 w-3.5" />
-            {formatDuration(route.total_drive_min ?? 0)} drive
-          </span>
+          {(route.total_drive_min ?? 0) > 0 && (
+            <span className="flex items-center gap-1">
+              <Navigation className="h-3.5 w-3.5" />
+              {formatDuration(route.total_drive_min)} drive
+            </span>
+          )}
           <span>Est. finish {finishTime}</span>
         </div>
       </div>
     </div>
   )
 }
+

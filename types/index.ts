@@ -30,6 +30,8 @@ export type PhotoType = "before" | "after" | "reference" | "issue"
 
 export type OptimizationStatus = "pending" | "optimized" | "manual"
 
+export type CommChannel = "email" | "sms" | "app"
+
 // ─── Core entities ────────────────────────────────────────────────────────────
 
 export interface Business {
@@ -240,6 +242,17 @@ export interface Invoice {
   created_at: string
   // Joined
   client?: Client
+}
+
+export interface Communication {
+  id: string
+  business_id: string
+  client_id: string | null
+  job_id: string | null
+  channel: CommChannel
+  direction: "inbound" | "outbound"
+  message: string
+  sent_at: string  // ISO timestamptz
 }
 
 // ─── Dashboard-specific view types ───────────────────────────────────────────
