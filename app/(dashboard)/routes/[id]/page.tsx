@@ -44,7 +44,7 @@ export default async function RouteDetailPage({ params }: PageProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  const { data: route } = await db
+  const { data: route, error } = await db
     .from("routes")
     .select(`
       *,
@@ -60,13 +60,14 @@ export default async function RouteDetailPage({ params }: PageProps) {
       )
     `)
     .eq("id", id)
-    .order("stop_order", { referencedTable: "route_stops", ascending: true })
     .single()
 
-  if (!route) notFound()
+  if (error || !route) notFound()
 
   const typedRoute = route as Route
-  const stops = (typedRoute.stops ?? []) as RouteStop[]
+  const stops = ((typedRoute.stops ?? []) as RouteStop[]).sort(
+    (a, b) => a.stop_order - b.stop_order,
+  )
 
   const mapStops = stops
     .filter((s) => s.job?.property?.lat != null && s.job?.property?.lng != null)
