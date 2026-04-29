@@ -26,7 +26,10 @@ const LineItemSchema = z.object({
 const EstimateSchema = z.object({
   id: z.string().optional(),
   client_id: z.string().min(1, "Client is required"),
-  valid_until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  valid_until: z.preprocess(
+    (v) => (v === "" ? null : v),
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  ),
   tax_rate: z.coerce.number().min(0).max(100).default(0),
   notes: z.string().nullable().optional(),
   items: z.array(LineItemSchema).min(1, "At least one line item is required"),
@@ -89,21 +92,34 @@ export async function saveEstimate(values: EstimateFormValues): Promise<Estimate
   // Create new estimate
   const estimate_number = await getNextEstimateNumber(db, businessId)
 
-  const { data: est, error: estError } = await db
+  const estimateRow: Record<string, unknown> = {
+    business_id: businessId,
+    client_id,
+    estimate_number,
+    status: "draft",
+    subtotal,
+    tax,
+    total,
+    valid_until: valid_until ?? null,
+    notes: notes ?? null,
+  }
+
+  let { data: est, error: estError } = await db
     .from("estimates")
-    .insert({
-      business_id: businessId,
-      client_id,
-      estimate_number,
-      status: "draft",
-      subtotal,
-      tax,
-      total,
-      valid_until: valid_until ?? null,
-      notes: notes ?? null,
-    })
+    .insert(estimateRow)
     .select("id")
     .single()
+
+  // Fallback: notes column may not exist if migration 005 hasn't been applied yet
+  if (estError?.message?.includes("notes")) {
+    const { notes: _n, ...rowWithoutNotes } = estimateRow
+    void _n
+    ;({ data: est, error: estError } = await db
+      .from("estimates")
+      .insert(rowWithoutNotes)
+      .select("id")
+      .single())
+  }
 
   if (estError) return { success: false, message: estError.message }
 

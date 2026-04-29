@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -73,13 +75,20 @@ export function CreateEstimateSheet({ clients, serviceTypes }: Props) {
           New Estimate
         </Button>
       </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
+      <SheetContent className="flex flex-col overflow-y-auto sm:max-w-2xl">
+        <SheetHeader className="pb-2">
           <SheetTitle>New Estimate</SheetTitle>
+          <SheetDescription>
+            Select a client, add line items, and set a valid-until date.
+          </SheetDescription>
         </SheetHeader>
 
         <FormProvider {...methods}>
-          <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-5">
+          <form
+            id="estimate-form"
+            onSubmit={handleSubmit(onSubmit)}
+            className="flex flex-col gap-5 px-4 py-2"
+          >
             {/* Client */}
             <div className="space-y-1.5">
               <Label>Client *</Label>
@@ -100,7 +109,7 @@ export function CreateEstimateSheet({ clients, serviceTypes }: Props) {
               </Select>
             </div>
 
-            {/* Valid until */}
+            {/* Valid until + tax */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Valid Until</Label>
@@ -150,16 +159,16 @@ export function CreateEstimateSheet({ clients, serviceTypes }: Props) {
                 rows={3}
               />
             </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isPending}>
-                {isPending ? "Saving…" : "Create Estimate"}
-              </Button>
-            </div>
           </form>
+
+          <SheetFooter className="px-4">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="estimate-form" disabled={isPending}>
+              {isPending ? "Saving…" : "Create Estimate"}
+            </Button>
+          </SheetFooter>
         </FormProvider>
       </SheetContent>
     </Sheet>
