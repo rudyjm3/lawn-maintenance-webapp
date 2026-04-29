@@ -4,26 +4,10 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { MapPin, Clock, Navigation, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { todayUtc } from "@/lib/dates"
+import { todayUtc, formatDuration, formatTime } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
 import { STOP_STATUS_BADGE, type StopStatus } from "@/components/crew/stop-status"
 import { Button } from "@/components/ui/button"
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-
-function formatDuration(minutes: number): string {
-  if (!minutes) return "0m"
-  if (minutes < 60) return `${minutes}m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
-}
-
-function formatTime(isoDatetime: string | null): string {
-  if (!isoDatetime) return "--"
-  return new Date(isoDatetime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-}
 
 // ─── Stop card (with collapsible access notes) ────────────────────────────────
 

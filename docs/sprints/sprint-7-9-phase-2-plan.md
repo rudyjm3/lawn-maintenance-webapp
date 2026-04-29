@@ -98,11 +98,27 @@ Deliver a reliable operations layer across scheduling, service catalog, properti
   - Mitigation: Enforce out-of-scope list and sprint-specific exit criteria.
 
 ## Acceptance Checklist
-- [ ] Sprint 7 exit criteria met
-- [ ] Sprint 8 exit criteria met
+- [x] Sprint 7 exit criteria met
+- [x] Sprint 8 exit criteria met
 - [ ] Sprint 9 exit criteria met
 - [ ] Phase 2 success criteria validated
 - [ ] Rollout/rollback notes documented
+
+## Sprint 9 Gate Status (2026-04-28)
+- Build gate: Pass (`npm run build`)
+- Type gate: Pass (`npx tsc --noEmit`)
+- Focused route regression gate (`/schedule`, `/routes`, `/crew/today`, `/crew/job/[id]`): Pass with prior defects fixed
+- Auth/business-scoping audit: Pass for all scoped actions touched in Sprint 7-9 work
+- Repo-wide lint gate: **Fail** (pre-existing/unrelated issues remain)
+
+### Blocking Items Before Full Sprint Close
+- `app/actions/leads.ts`
+  - `@typescript-eslint/no-explicit-any` errors
+- Additional repo warnings (unused imports/vars and React Compiler incompatible-library warnings) in non-sprint files
+
+### Closeout Decision
+- Sprint 7 and Sprint 8 are complete.
+- Sprint 9 remains open pending repo-wide lint cleanup and final closeout artifacts.
 
 ## Notes
 - This is the initial planning baseline for implementation on branch `sprint-7-9-phase-2`.

@@ -1,22 +1,12 @@
 import Link from "next/link"
 import { MapPin, Clock, Navigation, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
-import { todayUtc } from "@/lib/dates"
+import { todayUtc, formatDuration } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { STOP_STATUS_BADGE, type StopStatus } from "@/components/crew/stop-status"
 
 export const metadata = { title: "Today's Route" }
-
-// ─── Status helpers ───────────────────────────────────────────────────────────
-
-
-function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
-}
 
 function formatDate(isoDate: string): string {
   const [year, month, day] = isoDate.split("-").map(Number)

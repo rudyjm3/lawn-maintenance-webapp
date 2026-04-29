@@ -4,26 +4,13 @@ import { useEffect, useState } from "react"
 import Image from "next/image"
 import { Clock, MapPin, ChevronDown, ChevronUp } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { todayUtc } from "@/lib/dates"
+import { todayUtc, formatDuration, formatTime } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Tab = "completed" | "skipped"
-
-function formatTime(iso: string | null): string {
-  if (!iso) return "--"
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-}
-
-function formatDuration(minutes: number | null): string {
-  if (!minutes) return "--"
-  if (minutes < 60) return `${minutes}m`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m > 0 ? `${h}h ${m}m` : `${h}h`
-}
 
 // ─── History Card ─────────────────────────────────────────────────────────────
 

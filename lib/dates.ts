@@ -32,3 +32,16 @@ export function formatLocalDate(date: Date): string {
   const day = `${date.getDate()}`.padStart(2, "0")
   return `${year}-${month}-${day}`
 }
+
+export function formatDuration(minutes: number): string {
+  if (!minutes) return "0m"
+  if (minutes < 60) return `${minutes}m`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+export function formatTime(iso: string | null, fallback = "--"): string {
+  if (!iso) return fallback
+  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+}
