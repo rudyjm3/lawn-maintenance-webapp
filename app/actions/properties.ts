@@ -123,6 +123,55 @@ const PropertySchema = z.object({
 
 export type PropertyFormValues = z.infer<typeof PropertySchema>
 
+export type BulkGeocodeState = {
+  geocoded: number
+  skipped: number
+  failed: number
+  message: string
+}
+
+export async function geocodeAllProperties(): Promise<BulkGeocodeState> {
+  const supabase = await createSupabaseClient()
+  const { businessId } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { geocoded: 0, skipped: 0, failed: 0, message: "Not authenticated." }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { data: properties } = await db
+    .from("properties")
+    .select("id, address, lat, lng")
+    .eq("business_id", businessId)
+    .is("lat", null)
+
+  const rows = (properties ?? []) as { id: string; address: string; lat: null; lng: null }[]
+  if (rows.length === 0) return { geocoded: 0, skipped: 0, failed: 0, message: "All properties already have coordinates." }
+
+  let geocoded = 0
+  let failed = 0
+
+  for (const prop of rows) {
+    const geo = await geocodeAddress(prop.address)
+    if (geo.coordinates) {
+      await db
+        .from("properties")
+        .update({ lat: geo.coordinates.lat, lng: geo.coordinates.lng })
+        .eq("id", prop.id)
+      geocoded++
+    } else {
+      failed++
+    }
+  }
+
+  revalidatePath("/properties")
+  revalidatePath("/routes")
+  return {
+    geocoded,
+    skipped: 0,
+    failed,
+    message: `Geocoded ${geocoded} of ${rows.length} properties.${failed > 0 ? ` ${failed} failed (address not found).` : ""}`,
+  }
+}
+
 export async function saveProperty(values: PropertyFormValues): Promise<PropertyActionState> {
   const parsed = PropertySchema.safeParse(values)
   if (!parsed.success) {
