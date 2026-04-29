@@ -31,6 +31,7 @@ export async function setRouteLocked(
   if (error) return { success: false, message: error.message }
   revalidatePath("/routes")
   revalidatePath(`/routes/${routeId}`)
+  revalidatePath("/dashboard")
   return { success: true, message: locked ? "Route locked." : "Route unlocked." }
 }
 
@@ -73,6 +74,7 @@ export async function reorderStops(
 
   await recalculateDriveTimes(routeId)
   revalidatePath(`/routes/${routeId}`)
+  revalidatePath("/dashboard")
   return { success: true, message: "Stop order updated." }
 }
 
@@ -108,6 +110,7 @@ export async function removeStop(
   if (error) return { success: false, message: error.message }
   await recalculateDriveTimes(routeId)
   revalidatePath(`/routes/${routeId}`)
+  revalidatePath("/dashboard")
   return { success: true, message: "Stop removed." }
 }
 
@@ -163,6 +166,7 @@ export async function addJobToRoute(
   if (error) return { success: false, message: error.message }
   await recalculateDriveTimes(routeId)
   revalidatePath(`/routes/${routeId}`)
+  revalidatePath("/dashboard")
   return { success: true, message: "Job added to route." }
 }
 
@@ -206,6 +210,7 @@ export async function createRoute(values: {
   if (error) return { success: false, message: error.message }
 
   revalidatePath("/routes")
+  revalidatePath("/dashboard")
   return { success: true, message: "Route created.", routeId: data.id }
 }
 
@@ -266,6 +271,7 @@ export async function recalculateDriveTimes(
 
     revalidatePath(`/routes/${routeId}`)
     revalidatePath("/routes")
+    revalidatePath("/dashboard")
 
     const reason =
       geocodedStops.length === 0
@@ -306,6 +312,7 @@ export async function recalculateDriveTimes(
 
   revalidatePath(`/routes/${routeId}`)
   revalidatePath("/routes")
+  revalidatePath("/dashboard")
 
   const ungeocodedCount = typedStops.length - geocodedStops.length
   const note = ungeocodedCount > 0 ? ` (${ungeocodedCount} stop${ungeocodedCount > 1 ? "s" : ""} skipped — no coordinates)` : ""

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { GripVertical, X, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { reorderStops, removeStop } from "@/app/actions/routes"
@@ -16,6 +16,10 @@ interface RouteStopListProps {
 
 export function RouteStopList({ routeId, stops: initialStops, isLocked }: RouteStopListProps) {
   const [stops, setStops] = useState(initialStops)
+
+  useEffect(() => {
+    setStops(initialStops)
+  }, [initialStops])
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [overIndex, setOverIndex] = useState<number | null>(null)
   const [reorderPending, startReorder] = useTransition()

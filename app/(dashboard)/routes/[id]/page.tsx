@@ -8,6 +8,7 @@ import { RouteStopList } from "@/components/routes/route-stop-list"
 import { RouteMap } from "@/components/routes/route-map"
 import { RouteLockToggle } from "@/components/routes/route-lock-toggle"
 import { RouteRecalculateButton } from "@/components/routes/route-recalculate-button"
+import { AddStopsPanel } from "@/components/routes/add-stops-panel"
 import type { Route, RouteStop } from "@/types"
 
 interface PageProps {
@@ -77,6 +78,25 @@ export default async function RouteDetailPage({ params }: PageProps) {
       }
       return stop
     })
+
+  // Jobs scheduled for this route's date that aren't already stops on this route
+  const routedJobIds = new Set(stops.map((s) => s.job_id).filter(Boolean))
+  const { data: unroutedJobsData } = await db
+    .from("jobs")
+    .select("id, client:clients(id, name), property:properties(id, address), property_service:property_services(service_type:service_types(id, name)), estimated_duration_min")
+    .eq("service_date", typedRoute.route_date)
+    .neq("status", "cancelled")
+
+  type UnroutedJob = {
+    id: string
+    estimated_duration_min: number
+    client: { id: string; name: string | null } | null
+    property: { id: string; address: string | null } | null
+    property_service: { service_type: { id: string; name: string } | null } | null
+  }
+  const unroutedJobs = ((unroutedJobsData ?? []) as UnroutedJob[]).filter(
+    (j) => !routedJobIds.has(j.id),
+  )
 
   const mapStops = stops
     .filter((s) => s.job?.property?.lat != null && s.job?.property?.lng != null)
@@ -152,6 +172,9 @@ export default async function RouteDetailPage({ params }: PageProps) {
             stops={stops}
             isLocked={typedRoute.is_locked}
           />
+          {!typedRoute.is_locked && (
+            <AddStopsPanel routeId={typedRoute.id} unroutedJobs={unroutedJobs} />
+          )}
         </div>
 
         <div className="space-y-4">

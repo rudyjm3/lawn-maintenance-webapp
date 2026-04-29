@@ -4,6 +4,7 @@ import { buildWeekSnapshot, normalizeJobRows } from "@/lib/jobs"
 import { createClient } from "@/lib/supabase/server"
 import type { Job } from "@/types"
 
+export const dynamic = "force-dynamic"
 export const metadata = { title: "Schedule" }
 
 export default async function SchedulePage() {

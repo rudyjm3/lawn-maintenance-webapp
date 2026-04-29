@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { formatDuration } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
 
+export const dynamic = "force-dynamic"
 export const metadata = { title: "Route Planner" }
 
 function formatDate(isoDate: string): string {

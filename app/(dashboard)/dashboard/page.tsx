@@ -19,6 +19,7 @@ import { buildWeekSnapshot } from "@/lib/jobs"
 import { createClient } from "@/lib/supabase/server"
 import type { ActivityItem, Job, Route, RouteStop } from "@/types"
 
+export const dynamic = "force-dynamic"
 export const metadata = { title: "Dashboard" }
 
 const CAPACITY_MINUTES = 480
