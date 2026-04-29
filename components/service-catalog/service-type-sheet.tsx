@@ -54,6 +54,7 @@ export function ServiceTypeSheet({ open, onOpenChange, serviceType }: ServiceTyp
     },
   })
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const isRecurring = watch("is_recurring")
   const isSeasonal = watch("is_seasonal")
 

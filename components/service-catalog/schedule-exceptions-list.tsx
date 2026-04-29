@@ -80,6 +80,7 @@ export function ScheduleExceptionsList({
     defaultValues: { original_date: "", exception_type: "skip", new_date: "", reason: "" },
   })
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const watchedType = watch("exception_type")
 
   const existingExceptionDates = new Set(exceptions.map((e) => e.original_date))

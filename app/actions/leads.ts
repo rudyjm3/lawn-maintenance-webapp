@@ -30,6 +30,7 @@ export async function submitQuote(values: QuoteFormValues): Promise<LeadActionSt
     return { success: false, message: parsed.error.issues[0]?.message ?? "Validation error" }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any
   let businessId = process.env.SITE_BUSINESS_ID?.trim() || process.env.NEXT_PUBLIC_SITE_BUSINESS_ID?.trim() || ""
 
@@ -68,7 +69,8 @@ export async function submitQuote(values: QuoteFormValues): Promise<LeadActionSt
 
   // Backward-compatible fallback for databases that don't yet have leads.notes.
   if (error?.message?.includes("Could not find the 'notes' column")) {
-    const { notes: _notes, ...rowWithoutNotes } = row
+    const { notes, ...rowWithoutNotes } = row
+    void notes
     ;({ error } = await db.from("leads").insert(rowWithoutNotes))
   }
 
@@ -95,6 +97,7 @@ export async function updateLeadStatus(
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
   const { error } = await db
     .from("leads")
@@ -115,6 +118,7 @@ export async function convertLeadToClient(leadId: string): Promise<LeadActionSta
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
   // Fetch lead

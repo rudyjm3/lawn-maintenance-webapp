@@ -85,6 +85,7 @@ export function RecurrenceRuleDialog({
     },
   })
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const watchFrequency = watch("frequency_type")
   const watchInterval = watch("interval")
   const watchStartDate = watch("start_date")
