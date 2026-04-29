@@ -129,6 +129,15 @@ export default async function ReportsPage() {
       .lte("route_date", end),
   ])
 
+  if (jobsResult.error || paymentsResult.error || routesResult.error) {
+    const msg = jobsResult.error?.message ?? paymentsResult.error?.message ?? routesResult.error?.message
+    return (
+      <div className="flex h-full items-center justify-center rounded-lg border border-border bg-card p-6 text-center">
+        <p className="text-sm text-destructive">Failed to load report data: {msg}</p>
+      </div>
+    )
+  }
+
   const jobs = (jobsResult.data ?? []) as JobRow[]
   const payments = (paymentsResult.data ?? []) as { amount: number }[]
   const rawRoutes = (routesResult.data ?? []) as Array<{

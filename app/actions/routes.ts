@@ -135,14 +135,15 @@ export async function addJobToRoute(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  const { data: route } = await db
+  const { data: route, error: routeError } = await db
     .from("routes")
     .select("is_locked")
     .eq("id", routeId)
     .eq("business_id", businessId)
     .single()
 
-  if (route?.is_locked) return { success: false, message: "Cannot edit a locked route." }
+  if (routeError || !route) return { success: false, message: "Route not found." }
+  if (route.is_locked) return { success: false, message: "Cannot edit a locked route." }
 
   // Get current max stop_order
   const { data: stops } = await db
