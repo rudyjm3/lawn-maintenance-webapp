@@ -229,6 +229,62 @@ export interface Lead {
   created_at: string
 }
 
+export interface Estimate {
+  id: string
+  business_id: string
+  client_id: string | null
+  lead_id: string | null
+  estimate_number: string
+  status: EstimateStatus
+  subtotal: number
+  tax: number
+  total: number
+  valid_until: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // Joined
+  client?: Client
+  items?: EstimateItem[]
+}
+
+export interface EstimateItem {
+  id: string
+  business_id: string
+  estimate_id: string
+  service_type_id: string | null
+  description: string
+  qty: number
+  unit_price: number
+  total_price: number
+  duration_min: number | null
+}
+
+export interface InvoiceItem {
+  id: string
+  business_id: string
+  invoice_id: string
+  job_id: string | null
+  description: string
+  qty: number
+  unit_price: number
+  total_price: number
+}
+
+export interface Payment {
+  id: string
+  business_id: string
+  invoice_id: string
+  amount: number
+  method: string | null
+  payment_date: string
+  reference: string | null
+  notes: string | null
+  created_at: string
+  // Joined
+  invoice?: Invoice
+}
+
 export interface Invoice {
   id: string
   business_id: string
@@ -238,10 +294,15 @@ export interface Invoice {
   subtotal: number
   tax: number
   total: number
-  due_date: string
+  due_date: string | null
+  stripe_payment_link: string | null
+  stripe_payment_intent_id: string | null
   created_at: string
+  updated_at: string
   // Joined
   client?: Client
+  items?: InvoiceItem[]
+  payments?: Payment[]
 }
 
 export interface Communication {
