@@ -1,10 +1,10 @@
 "use client"
 
-import { startTransition, useCallback, useState } from "react"
+import { startTransition, useCallback, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
-import { updateJobSchedule } from "@/app/actions/jobs"
+import { updateJobSchedule, rescheduleJobsForDate } from "@/app/actions/jobs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatLocalDate } from "@/lib/dates"
@@ -12,12 +12,14 @@ import { cn } from "@/lib/utils"
 import { CapacityBar } from "./capacity-bar"
 import { JobChip } from "./job-chip"
 import type { Job, WeekDaySnapshot } from "@/types"
+import type { DayWeather } from "@/lib/weather"
 
 const CAPACITY_MIN = 480
 
 interface WeekPlannerProps {
   initialDays: WeekDaySnapshot[]
   initialUnscheduled: Job[]
+  weatherByDate?: Record<string, DayWeather>
 }
 
 function isoDate(base: Date, offsetDays: number): string {
@@ -49,7 +51,140 @@ function buildWeekDays(anchor: Date, allJobs: Job[]): WeekDaySnapshot[] {
   })
 }
 
-export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProps) {
+// ─── Weather reschedule inline UI ────────────────────────────────────────────
+
+function WeatherReschedulePanel({
+  fromDate,
+  onDone,
+}: {
+  fromDate: string
+  onDone: () => void
+}) {
+  const [toDate, setToDate] = useState("")
+  const [isPending, startReschedule] = useTransition()
+  const router = useRouter()
+
+  function handleReschedule() {
+    if (!toDate) return
+    startReschedule(async () => {
+      const result = await rescheduleJobsForDate(fromDate, toDate)
+      if (result.success) {
+        toast.success(result.message)
+        onDone()
+        startTransition(() => router.refresh())
+      } else {
+        toast.error(result.message)
+      }
+    })
+  }
+
+  return (
+    <div className="absolute left-0 right-0 top-full z-30 mt-1 rounded-lg border border-amber-200 bg-amber-50 p-3 shadow-lg dark:border-amber-800 dark:bg-amber-950/80">
+      <p className="mb-2 text-xs font-medium text-amber-900 dark:text-amber-200">
+        Move all jobs to:
+      </p>
+      <div className="flex gap-1.5">
+        <input
+          type="date"
+          value={toDate}
+          min={new Date().toISOString().slice(0, 10)}
+          onChange={(e) => setToDate(e.target.value)}
+          className="flex-1 rounded border border-amber-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-400 dark:bg-amber-950 dark:border-amber-700"
+        />
+        <Button
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={handleReschedule}
+          disabled={!toDate || isPending}
+        >
+          {isPending ? "Moving…" : "Move"}
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 px-1.5" onClick={onDone}>
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Day column header ────────────────────────────────────────────────────────
+
+function DayHeader({
+  day,
+  weather,
+}: {
+  day: WeekDaySnapshot
+  weather?: DayWeather
+}) {
+  const [showReschedule, setShowReschedule] = useState(false)
+  const showWeatherAlert =
+    weather &&
+    (weather.severity === "rain" || weather.severity === "severe") &&
+    day.jobs.length > 0
+
+  return (
+    <div
+      className={cn(
+        "relative flex items-center justify-between rounded-t-xl px-3 py-2",
+        day.isToday ? "bg-primary/10" : "bg-muted/40",
+        day.isOverbooked && "bg-destructive/10",
+        showWeatherAlert && !day.isOverbooked && "bg-amber-50 dark:bg-amber-950/30",
+      )}
+    >
+      <div>
+        <div className="flex items-center gap-1.5">
+          <p
+            className={cn(
+              "text-xs font-semibold",
+              day.isToday ? "text-primary" : "text-foreground",
+              day.isOverbooked && "text-destructive",
+            )}
+          >
+            {day.label}
+          </p>
+          {weather && weather.severity !== "clear" && (
+            <span title={weather.label} className="text-[13px] leading-none">
+              {weather.icon}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {new Date(`${day.date}T12:00:00`).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })}
+        </p>
+      </div>
+
+      <div className="flex flex-col items-end gap-1">
+        {day.isOverbooked && (
+          <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+            Over
+          </Badge>
+        )}
+        {showWeatherAlert && (
+          <button
+            onClick={() => setShowReschedule((v) => !v)}
+            className="text-[10px] font-medium text-amber-700 underline hover:no-underline dark:text-amber-400"
+          >
+            {weather!.severity === "severe" ? "⛈️ Reschedule" : "🌧️ Reschedule"}
+          </button>
+        )}
+      </div>
+
+      {showReschedule && (
+        <WeatherReschedulePanel
+          fromDate={day.date}
+          onDone={() => setShowReschedule(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Main planner ─────────────────────────────────────────────────────────────
+
+export function WeekPlanner({ initialDays, initialUnscheduled, weatherByDate = {} }: WeekPlannerProps) {
   const router = useRouter()
   const [allJobs, setAllJobs] = useState<Job[]>([
     ...initialDays.flatMap((day) => day.jobs),
@@ -203,6 +338,7 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
         <div className="flex flex-1 gap-1 overflow-x-auto">
           {days.map((day) => {
             const isDropTarget = dropTargetDate === day.date
+            const weather = weatherByDate[day.date]
 
             return (
               <div
@@ -215,38 +351,10 @@ export function WeekPlanner({ initialDays, initialUnscheduled }: WeekPlannerProp
                   day.isToday ? "border-primary/50" : "border-border",
                   isDropTarget && "border-primary bg-primary/5 ring-1 ring-primary",
                   day.isOverbooked && !isDropTarget && "border-destructive/40",
+                  weather?.severity === "severe" && !isDropTarget && !day.isOverbooked && "border-amber-300 dark:border-amber-700",
                 )}
               >
-                <div
-                  className={cn(
-                    "flex items-center justify-between rounded-t-xl px-3 py-2",
-                    day.isToday ? "bg-primary/10" : "bg-muted/40",
-                    day.isOverbooked && "bg-destructive/10",
-                  )}
-                >
-                  <div>
-                    <p
-                      className={cn(
-                        "text-xs font-semibold",
-                        day.isToday ? "text-primary" : "text-foreground",
-                        day.isOverbooked && "text-destructive",
-                      )}
-                    >
-                      {day.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(`${day.date}T12:00:00`).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </p>
-                  </div>
-                  {day.isOverbooked && (
-                    <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
-                      Over
-                    </Badge>
-                  )}
-                </div>
+                <DayHeader day={day} weather={weather} />
 
                 <div className="px-3 pt-2">
                   <CapacityBar
