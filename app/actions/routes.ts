@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
+import { getSequentialDriveTimes } from "@/lib/routing"
 import { z } from "zod"
 
 export type RouteActionState =
@@ -70,6 +71,7 @@ export async function reorderStops(
   const failed = results.find((r) => r.error)
   if (failed?.error) return { success: false, message: failed.error.message }
 
+  await recalculateDriveTimes(routeId)
   revalidatePath(`/routes/${routeId}`)
   return { success: true, message: "Stop order updated." }
 }
@@ -104,6 +106,7 @@ export async function removeStop(
     .eq("business_id", businessId)
 
   if (error) return { success: false, message: error.message }
+  await recalculateDriveTimes(routeId)
   revalidatePath(`/routes/${routeId}`)
   return { success: true, message: "Stop removed." }
 }
@@ -158,6 +161,7 @@ export async function addJobToRoute(
   })
 
   if (error) return { success: false, message: error.message }
+  await recalculateDriveTimes(routeId)
   revalidatePath(`/routes/${routeId}`)
   return { success: true, message: "Job added to route." }
 }
@@ -203,4 +207,110 @@ export async function createRoute(values: {
 
   revalidatePath("/routes")
   return { success: true, message: "Route created.", routeId: data.id }
+}
+
+// ─── Recalculate drive times ──────────────────────────────────────────────────
+
+export async function recalculateDriveTimes(
+  routeId: string,
+): Promise<RouteActionState> {
+  const supabase = await createClient()
+  const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  // Fetch stops ordered by stop_order, with job duration and property coordinates
+  const { data: stops, error: stopsError } = await db
+    .from("route_stops")
+    .select(`
+      id,
+      stop_order,
+      job:jobs(
+        estimated_duration_min,
+        property:properties(lat, lng)
+      )
+    `)
+    .eq("route_id", routeId)
+    .eq("business_id", businessId)
+    .order("stop_order", { ascending: true })
+
+  if (stopsError || !stops) return { success: false, message: stopsError?.message ?? "Stops not found." }
+
+  type StopRow = {
+    id: string
+    stop_order: number
+    job: { estimated_duration_min: number; property: { lat: number | null; lng: number | null } | null } | null
+  }
+  const typedStops = stops as StopRow[]
+
+  // Total job minutes from all stops regardless of geocoding
+  const totalJobMin = typedStops.reduce(
+    (sum, s) => sum + (s.job?.estimated_duration_min ?? 0),
+    0,
+  )
+
+  // Only stops with coordinates can contribute to drive time
+  const geocodedStops = typedStops.filter(
+    (s) => s.job?.property?.lat != null && s.job?.property?.lng != null,
+  )
+
+  if (geocodedStops.length < 2) {
+    // Can't calculate — zero out drive times and update job total only
+    await db
+      .from("routes")
+      .update({ total_job_min: totalJobMin, total_drive_min: 0 })
+      .eq("id", routeId)
+      .eq("business_id", businessId)
+
+    revalidatePath(`/routes/${routeId}`)
+    revalidatePath("/routes")
+
+    const reason =
+      geocodedStops.length === 0
+        ? "No stops have coordinates — geocode properties in Settings first."
+        : "Need at least 2 geocoded stops to calculate drive time."
+    return { success: false, message: reason }
+  }
+
+  const coords = geocodedStops.map((s) => ({
+    lat: s.job!.property!.lat as number,
+    lng: s.job!.property!.lng as number,
+  }))
+
+  const result = await getSequentialDriveTimes(coords)
+  if (!result) {
+    return { success: false, message: "Drive time calculation failed. Check ORS_API_KEY." }
+  }
+
+  // Write travel_time_min back to each geocoded stop
+  const updates = geocodedStops.map((stop, i) =>
+    db
+      .from("route_stops")
+      .update({ travel_time_min: result.travelMinutes[i] })
+      .eq("id", stop.id)
+      .eq("business_id", businessId),
+  )
+  await Promise.all(updates)
+
+  // Update route totals
+  await db
+    .from("routes")
+    .update({
+      total_job_min: totalJobMin,
+      total_drive_min: result.totalDriveMinutes,
+    })
+    .eq("id", routeId)
+    .eq("business_id", businessId)
+
+  revalidatePath(`/routes/${routeId}`)
+  revalidatePath("/routes")
+
+  const ungeocodedCount = typedStops.length - geocodedStops.length
+  const note = ungeocodedCount > 0 ? ` (${ungeocodedCount} stop${ungeocodedCount > 1 ? "s" : ""} skipped — no coordinates)` : ""
+  return {
+    success: true,
+    message: `Drive times updated${note}.`,
+  }
 }

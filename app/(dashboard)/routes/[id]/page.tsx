@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { RouteStopList } from "@/components/routes/route-stop-list"
 import { RouteMap } from "@/components/routes/route-map"
 import { RouteLockToggle } from "@/components/routes/route-lock-toggle"
+import { RouteRecalculateButton } from "@/components/routes/route-recalculate-button"
 import type { Route, RouteStop } from "@/types"
 
 interface PageProps {
@@ -135,7 +136,10 @@ export default async function RouteDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          <RouteLockToggle routeId={typedRoute.id} isLocked={typedRoute.is_locked} />
+          <div className="flex gap-2 shrink-0">
+            <RouteRecalculateButton routeId={typedRoute.id} isLocked={typedRoute.is_locked} />
+            <RouteLockToggle routeId={typedRoute.id} isLocked={typedRoute.is_locked} />
+          </div>
         </div>
       </div>
 
