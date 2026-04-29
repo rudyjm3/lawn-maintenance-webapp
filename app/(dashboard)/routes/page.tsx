@@ -80,8 +80,12 @@ export default async function RoutesPage() {
             </thead>
             <tbody>
               {routes.map((route: { id: string; route_date: string; total_job_min: number; total_drive_min: number; is_locked: boolean; crew: { name: string } | null }) => (
-                <tr key={route.id} className="border-t border-border">
-                  <td className="px-4 py-3">{formatDate(route.route_date)}</td>
+                <tr key={route.id} className="border-t border-border hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-3">
+                    <Link href={`/routes/${route.id}`} className="font-medium hover:underline">
+                      {formatDate(route.route_date)}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3">{route.crew?.name ?? "Unassigned"}</td>
                   <td className="px-4 py-3">{formatDuration(route.total_job_min ?? 0)}</td>
                   <td className="px-4 py-3">{formatDuration(route.total_drive_min ?? 0)}</td>
