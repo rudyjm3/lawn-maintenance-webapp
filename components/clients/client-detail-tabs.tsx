@@ -15,13 +15,20 @@ import {
   SkipForward,
   Pencil,
   Plus,
+  Mail,
+  MessageSquare,
+  Smartphone,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AddPropertySheet } from "@/components/properties/add-property-sheet"
 import { PropertyServicesPanel } from "@/components/service-catalog/property-services-panel"
-import { type Client, type Property, type Job, type ServiceType, type PropertyService } from "@/types"
+import { type Client, type Property, type Job, type ServiceType, type PropertyService, type Communication } from "@/types"
+import { logCommunication } from "@/app/actions/communications"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
 // ─── Job status display ────────────────────────────────────────────────────────
@@ -339,6 +346,81 @@ function PropertiesTab({
   )
 }
 
+// ─── Services tab ─────────────────────────────────────────────────────────────
+
+function ServicesTab({
+  client,
+  properties,
+  propertyServices,
+  serviceTypes,
+}: {
+  client: Client
+  properties: Property[]
+  propertyServices: PropertyService[]
+  serviceTypes: ServiceType[]
+}) {
+  const totalServices = propertyServices.length
+  const activeServices = propertyServices.filter((ps) => ps.is_active).length
+
+  if (properties.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card py-16 text-center">
+        <Building2 className="h-8 w-8 text-muted-foreground/50" />
+        <p className="text-sm font-medium text-foreground">No properties yet</p>
+        <p className="text-xs text-muted-foreground">
+          Add a property first, then assign recurring services to it.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary strip */}
+      <div className="flex flex-wrap gap-4 rounded-xl border border-border bg-card p-4 text-sm">
+        <div>
+          <span className="text-muted-foreground">Total services </span>
+          <span className="font-semibold">{totalServices}</span>
+        </div>
+        <div>
+          <span className="text-muted-foreground">Active </span>
+          <span className="font-semibold text-emerald-600">{activeServices}</span>
+        </div>
+        {totalServices - activeServices > 0 && (
+          <div>
+            <span className="text-muted-foreground">Paused </span>
+            <span className="font-semibold text-amber-600">{totalServices - activeServices}</span>
+          </div>
+        )}
+      </div>
+
+      {/* One panel per property */}
+      {properties.map((p) => {
+        const count = propertyServices.filter((ps) => ps.property_id === p.id).length
+        return (
+          <div key={p.id} className="rounded-xl border border-border bg-card p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">{p.address}</span>
+              {count > 0 && (
+                <Badge variant="secondary" className="ml-auto text-xs">
+                  {count} service{count !== 1 ? "s" : ""}
+                </Badge>
+              )}
+            </div>
+            <PropertyServicesPanel
+              propertyId={p.id}
+              clientId={client.id}
+              propertyServices={propertyServices}
+              serviceTypes={serviceTypes}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Job history tab ──────────────────────────────────────────────────────────
 
 function JobHistoryTab({ jobs }: { jobs: Job[] }) {
@@ -435,6 +517,172 @@ function JobHistoryTab({ jobs }: { jobs: Job[] }) {
   )
 }
 
+// ─── Activity tab ─────────────────────────────────────────────────────────────
+
+const CHANNEL_CONFIG = {
+  email:  { icon: Mail,          label: "Email" },
+  sms:    { icon: MessageSquare, label: "SMS" },
+  app:    { icon: Smartphone,    label: "App" },
+} as const
+
+function ActivityTab({
+  client,
+  communications,
+}: {
+  client: Client
+  communications: Communication[]
+}) {
+  const [formOpen, setFormOpen] = useState(false)
+  const [channel, setChannel] = useState<"email" | "sms" | "app">("email")
+  const [direction, setDirection] = useState<"inbound" | "outbound">("outbound")
+  const [message, setMessage] = useState("")
+  const [submitting, setSubmitting] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!message.trim()) return
+    setSubmitting(true)
+    const result = await logCommunication({
+      client_id: client.id,
+      channel,
+      direction,
+      message: message.trim(),
+    })
+    setSubmitting(false)
+    if (result.success) {
+      toast.success(result.message)
+      setMessage("")
+      setFormOpen(false)
+    } else {
+      toast.error(result.message)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Log button / inline form */}
+      {formOpen ? (
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-xl border border-border bg-card p-4 space-y-3"
+        >
+          <div className="flex flex-wrap gap-2">
+            {(["email", "sms", "app"] as const).map((ch) => (
+              <button
+                key={ch}
+                type="button"
+                onClick={() => setChannel(ch)}
+                className={cn(
+                  "rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
+                  channel === ch
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {CHANNEL_CONFIG[ch].label}
+              </button>
+            ))}
+            <span className="mx-1 border-l border-border" />
+            {(["outbound", "inbound"] as const).map((dir) => (
+              <button
+                key={dir}
+                type="button"
+                onClick={() => setDirection(dir)}
+                className={cn(
+                  "rounded-md border px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                  direction === dir
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {dir}
+              </button>
+            ))}
+          </div>
+
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Message content or notes…"
+            rows={3}
+            className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => { setFormOpen(false); setMessage("") }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={submitting || !message.trim()}>
+              {submitting ? "Saving…" : "Log"}
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={() => setFormOpen(true)}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Log Communication
+          </Button>
+        </div>
+      )}
+
+      {/* Feed */}
+      {communications.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card py-16 text-center">
+          <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
+          <p className="text-sm font-medium text-foreground">No communications yet</p>
+          <p className="text-xs text-muted-foreground">
+            Log a call, email, or message to start the activity trail.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {communications.map((c) => {
+            const cfg = CHANNEL_CONFIG[c.channel] ?? CHANNEL_CONFIG.email
+            const Icon = cfg.icon
+            const DirIcon = c.direction === "inbound" ? ArrowDownLeft : ArrowUpRight
+            const dirColor = c.direction === "inbound" ? "text-blue-500" : "text-emerald-500"
+            return (
+              <div
+                key={c.id}
+                className="flex items-start gap-3 rounded-xl border border-border bg-card p-4"
+              >
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium text-foreground">{cfg.label}</span>
+                    <span className={cn("flex items-center gap-0.5 text-xs font-medium capitalize", dirColor)}>
+                      <DirIcon className="h-3 w-3" />
+                      {c.direction}
+                    </span>
+                    <span className="ml-auto text-xs text-muted-foreground">
+                      {new Date(c.sent_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-foreground whitespace-pre-line">{c.message}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Notes tab ────────────────────────────────────────────────────────────────
 
 function NotesTab({ client }: { client: Client }) {
@@ -468,6 +716,7 @@ interface ClientDetailTabsProps {
   jobs: Job[]
   serviceTypes: ServiceType[]
   propertyServices: PropertyService[]
+  communications: Communication[]
 }
 
 export function ClientDetailTabs({
@@ -476,6 +725,7 @@ export function ClientDetailTabs({
   jobs,
   serviceTypes,
   propertyServices,
+  communications,
 }: ClientDetailTabsProps) {
   return (
     <Tabs defaultValue="overview" className="space-y-5">
@@ -483,7 +733,9 @@ export function ClientDetailTabs({
         {[
           { value: "overview", label: "Overview" },
           { value: "properties", label: `Properties (${properties.length})` },
+          { value: "services", label: `Services (${propertyServices.length})` },
           { value: "history", label: `Job History (${jobs.length})` },
+          { value: "activity", label: `Activity (${communications.length})` },
           { value: "notes", label: "Notes" },
         ].map(({ value, label }) => (
           <TabsTrigger
@@ -507,8 +759,19 @@ export function ClientDetailTabs({
           propertyServices={propertyServices}
         />
       </TabsContent>
+      <TabsContent value="services">
+        <ServicesTab
+          client={client}
+          properties={properties}
+          propertyServices={propertyServices}
+          serviceTypes={serviceTypes}
+        />
+      </TabsContent>
       <TabsContent value="history">
         <JobHistoryTab jobs={jobs} />
+      </TabsContent>
+      <TabsContent value="activity">
+        <ActivityTab client={client} communications={communications} />
       </TabsContent>
       <TabsContent value="notes">
         <NotesTab client={client} />

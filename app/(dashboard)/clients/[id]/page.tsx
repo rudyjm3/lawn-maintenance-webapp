@@ -13,7 +13,7 @@ import { normalizeJobRows } from "@/lib/jobs"
 import { ClientStatusBadge } from "@/components/clients/client-status-badge"
 import { ClientDetailTabs } from "@/components/clients/client-detail-tabs"
 import { createClient } from "@/lib/supabase/server"
-import type { Client, Property, Job, ServiceType, PropertyService } from "@/types"
+import type { Client, Property, Job, ServiceType, PropertyService, Communication } from "@/types"
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -45,7 +45,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
 
   const propertyIds = ((properties ?? []) as Property[]).map((p) => p.id)
 
-  const [jobsResult, serviceTypesResult, propertyServicesResult] = await Promise.all([
+  const [jobsResult, serviceTypesResult, propertyServicesResult, commsResult] = await Promise.all([
     db
       .from("jobs")
       .select("*, property:properties(*), property_service:property_services(*, service_type:service_types(*))")
@@ -58,11 +58,17 @@ export default async function ClientDetailPage({ params }: PageProps) {
           .select("*, service_type:service_types(*), recurrence_rules(*, schedule_exceptions(*))")
           .in("property_id", propertyIds)
       : Promise.resolve({ data: [] }),
+    db
+      .from("communications")
+      .select("*")
+      .eq("client_id", id)
+      .order("sent_at", { ascending: false }),
   ])
 
   const jobs = normalizeJobRows((jobsResult.data ?? []) as Record<string, unknown>[]) as Job[]
   const serviceTypes = (serviceTypesResult.data ?? []) as ServiceType[]
   const propertyServices = (propertyServicesResult.data ?? []) as PropertyService[]
+  const communications = (commsResult.data ?? []) as Communication[]
 
   return (
     <div className="space-y-6">
@@ -150,6 +156,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
         jobs={jobs}
         serviceTypes={serviceTypes}
         propertyServices={propertyServices}
+        communications={communications}
       />
     </div>
   )
