@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { MapPin, Clock, Navigation, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
+import { MapPin, Clock, Navigation, ChevronDown, ChevronUp, ExternalLink, ChevronRight } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { todayUtc, formatDuration, formatTime } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
@@ -126,8 +127,13 @@ function StopCard({ stop }: { stop: any }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RoutePage() {
+  const searchParams = useSearchParams()
+  const selectedRouteId = searchParams.get("routeId")
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [route, setRoute] = useState<any | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [allRoutes, setAllRoutes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]   = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -183,7 +189,12 @@ export default function RoutePage() {
         .order("created_at")
 
       if (routeError) { setError(routeError.message); setLoading(false); return }
-      setRoute((routeRows ?? [])[0] ?? null)
+      const rows = routeRows ?? []
+      setAllRoutes(rows)
+      const picked = selectedRouteId
+        ? (rows.find((r: { id: string }) => r.id === selectedRouteId) ?? rows[0] ?? null)
+        : (rows[0] ?? null)
+      setRoute(picked)
       setLoading(false)
     }
 
@@ -208,6 +219,44 @@ export default function RoutePage() {
         <Button variant="outline" onClick={() => setReloadKey((v) => v + 1)}>
           Retry
         </Button>
+      </div>
+    )
+  }
+
+  // Multiple crews with routes today — show picker
+  if (!route && allRoutes.length > 1) {
+    return (
+      <div className="flex min-h-[60vh] flex-col justify-center gap-4 px-6 py-8">
+        <div className="text-center">
+          <p className="text-base font-semibold text-foreground">You&apos;re on multiple crews today.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Pick the route you&apos;re running.</p>
+        </div>
+        <div className="space-y-3">
+          {allRoutes.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => setRoute(r)}
+              className="flex w-full items-center gap-4 rounded-xl border border-border bg-card p-4 hover:bg-muted/40 transition-colors text-left"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <MapPin className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-semibold text-foreground">{r.crew?.name ?? "Unassigned"}</p>
+                <div className="mt-0.5 flex gap-3 text-xs text-muted-foreground">
+                  <span>{r.route_stops?.length ?? 0} stops</span>
+                  {r.total_job_min > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {formatDuration(r.total_job_min)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          ))}
+        </div>
       </div>
     )
   }
@@ -273,10 +322,12 @@ export default function RoutePage() {
             <Clock className="h-3.5 w-3.5" />
             {formatDuration(route.total_job_min ?? 0)} job time
           </span>
-          <span className="flex items-center gap-1">
-            <Navigation className="h-3.5 w-3.5" />
-            {formatDuration(route.total_drive_min ?? 0)} drive
-          </span>
+          {(route.total_drive_min ?? 0) > 0 && (
+            <span className="flex items-center gap-1">
+              <Navigation className="h-3.5 w-3.5" />
+              {formatDuration(route.total_drive_min)} drive
+            </span>
+          )}
           <span>Est. finish {finishTime}</span>
         </div>
       </div>

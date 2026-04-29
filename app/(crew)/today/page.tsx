@@ -5,7 +5,9 @@ import { todayUtc, formatDuration } from "@/lib/dates"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { STOP_STATUS_BADGE, type StopStatus } from "@/components/crew/stop-status"
+import { CrewRoutePicker } from "@/components/crew/crew-route-picker"
 
+export const dynamic = "force-dynamic"
 export const metadata = { title: "Today's Route" }
 
 function formatDate(isoDate: string): string {
@@ -33,7 +35,12 @@ function EmptyState({ message }: { message: string }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default async function TodayPage() {
+export default async function TodayPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ routeId?: string }>
+}) {
+  const { routeId: selectedRouteId } = await searchParams
   const supabase = await createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -87,9 +94,27 @@ export default async function TodayPage() {
     return <EmptyState message={routeRowsError.message} />
   }
 
-  // Take the first route for today; in multi-crew setups the owner controls which
-  // routes are created — crew members are typically assigned to one active route per day
-  const route = (routeRows ?? [])[0] ?? null
+  const allRoutes = routeRows ?? []
+
+  // If the user is on multiple crews with routes today, show a picker
+  if (allRoutes.length > 1 && !selectedRouteId) {
+    return (
+      <CrewRoutePicker
+        routes={allRoutes.map((r: { id: string; crew: { name: string } | null; total_job_min: number; total_drive_min: number; route_stops: unknown[] }) => ({
+          id: r.id,
+          crew: r.crew,
+          total_job_min: r.total_job_min,
+          total_drive_min: r.total_drive_min,
+          stopCount: r.route_stops?.length ?? 0,
+        }))}
+        href="/crew/today"
+      />
+    )
+  }
+
+  const route = selectedRouteId
+    ? (allRoutes.find((r: { id: string }) => r.id === selectedRouteId) ?? allRoutes[0] ?? null)
+    : (allRoutes[0] ?? null)
 
   if (!route) {
     return <EmptyState message="No route scheduled for today." />
@@ -134,10 +159,12 @@ export default async function TodayPage() {
             <Clock className="h-3 w-3" />
             {formatDuration(route.total_job_min ?? 0)} job time
           </span>
-          <span className="flex items-center gap-1">
-            <Navigation className="h-3 w-3" />
-            {formatDuration(route.total_drive_min ?? 0)} drive time
-          </span>
+          {(route.total_drive_min ?? 0) > 0 && (
+            <span className="flex items-center gap-1">
+              <Navigation className="h-3 w-3" />
+              {formatDuration(route.total_drive_min)} drive time
+            </span>
+          )}
         </div>
       </div>
 
