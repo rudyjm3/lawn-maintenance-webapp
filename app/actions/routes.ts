@@ -322,7 +322,7 @@ export async function recalculateDriveTimes(
 
   const result = await getSequentialDriveTimes(coords)
   if (!result) {
-    return { success: false, message: "Drive time calculation failed. Check ORS_API_KEY." }
+    return { success: false, message: "Drive time calculation failed — check ORS_API_KEY and server logs." }
   }
 
   // Write travel_time_min back to each geocoded stop
