@@ -37,13 +37,15 @@ function formatElapsed(seconds: number): string {
 
 // ─── Timer (client-only) ──────────────────────────────────────────────────────
 
-function useElapsedTimer(startMs: number) {
-  const [elapsed, setElapsed] = useState(() => Math.floor((Date.now() - startMs) / 1000))
+function useElapsedTimer(startMs: number | null) {
+  const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
+    if (startMs === null) return
+    setElapsed(Math.floor((Date.now() - startMs) / 1000))
     const id = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startMs) / 1000))
-    }, 10_000) // update every 10s is enough
+    }, 10_000)
     return () => clearInterval(id)
   }, [startMs])
 
@@ -78,9 +80,21 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [skipReason, setSkipReason]         = useState(SKIP_REASONS[0])
   const [reloadKey, setReloadKey]           = useState(0)
 
-  // Start time — record once on mount
-  const [startMs] = useState(() => Date.now())
+  // Start time — persisted in localStorage so navigation doesn't reset the timer
+  const [startMs, setStartMs] = useState<number | null>(null)
   const elapsedSec = useElapsedTimer(startMs)
+
+  useEffect(() => {
+    const key = `job-start-${jobId}`
+    const stored = localStorage.getItem(key)
+    if (stored) {
+      setStartMs(parseInt(stored, 10))
+    } else {
+      const now = Date.now()
+      localStorage.setItem(key, String(now))
+      setStartMs(now)
+    }
+  }, [jobId])
 
   // ── Data load ──────────────────────────────────────────────────────────────
 
@@ -102,7 +116,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           .select(`
             id, status, estimated_duration_min, photo_required, business_id,
             client:clients(id, name, phone),
-            property:properties(id, address, access_notes, gate_code, pet_notes, lawn_size),
+            property:properties(
+              id, address, access_notes, gate_code, pet_notes, lawn_size,
+              property_services(id, instructions, service_type:service_types(id, name))
+            ),
             property_service:property_services(
               id, instructions,
               service_type:service_types(id, name, default_duration_min)
@@ -163,6 +180,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     const db = supabase as any
     const now = new Date().toISOString()
     const elapsedMin = Math.max(1, Math.round(elapsedSec / 60))
+    localStorage.removeItem(`job-start-${jobId}`)
 
     try {
       // Update job status
@@ -182,7 +200,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       }
 
       // Insert time log
-      const startIso = new Date(startMs).toISOString()
+      const startIso = new Date(startMs ?? Date.now()).toISOString()
       const { error: e3 } = await db.from("time_logs").insert({
         job_id:      job.id,
         user_id:     currentUser.id,
@@ -229,6 +247,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any
     const now = new Date().toISOString()
+    localStorage.removeItem(`job-start-${jobId}`)
 
     try {
       const { error: s1 } = await db.from("jobs").update({ status: "skipped" }).eq("id", job.id)
@@ -266,13 +285,24 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function buildChecklist(job: any): string[] {
-    const instructions: string = job?.property_service?.instructions ?? ""
+    // Use job-specific instructions first, then fall back to property service instructions
+    const instructions: string =
+      job?.property_service?.instructions ??
+      job?.property?.property_services?.[0]?.instructions ??
+      ""
     if (!instructions) {
-      // Fallback generic checklist
-      const svcName: string = job?.property_service?.service_type?.name ?? ""
+      // Use job's service name, or first property service name as fallback
+      const svcName: string =
+        job?.property_service?.service_type?.name ??
+        job?.property?.property_services?.[0]?.service_type?.name ??
+        ""
       if (svcName.toLowerCase().includes("mow"))
         return ["Mow all lawn areas", "Edge along paths and borders", "Blow clippings off hard surfaces", "Check for debris or obstacles"]
-      return ["Complete assigned service", "Check area for issues", "Clean up before leaving"]
+      return [
+        svcName ? `Complete ${svcName}` : "Complete assigned service",
+        "Check area for issues",
+        "Clean up before leaving",
+      ]
     }
     return instructions
       .split("\n")
@@ -304,7 +334,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   const property       = job.property
   const client         = job.client
+  // Primary: the specific service this job was created for
   const svc            = job.property_service?.service_type
+  // Fallback: all services configured for this property (shown when job has no linked service)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const propertySvcs: any[] = svc ? [] : (property?.property_services ?? [])
   const hasAccessInfo  = property?.access_notes || property?.gate_code || property?.pet_notes
   const checklistItems = buildChecklist(job)
   const alreadyDone    = job.status === "completed" || job.status === "skipped"
@@ -319,10 +353,26 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         <div className="border-b border-border bg-background px-4 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">{svc?.name ?? "Service"}</p>
-              <h1 className="mt-0.5 text-lg font-semibold text-foreground leading-tight">
+              <h1 className="text-lg font-semibold text-foreground leading-tight">
                 {client?.name ?? "Client"}
               </h1>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {svc?.name ? (
+                  <Badge variant="secondary" className="text-xs font-medium">
+                    {svc.name}
+                  </Badge>
+                ) : propertySvcs.length > 0 ? (
+                  propertySvcs.map((ps: any) =>
+                    ps.service_type?.name ? (
+                      <Badge key={ps.id} variant="secondary" className="text-xs font-medium">
+                        {ps.service_type.name}
+                      </Badge>
+                    ) : null
+                  )
+                ) : (
+                  <span className="text-xs text-muted-foreground">No service assigned</span>
+                )}
+              </div>
               <p className="mt-0.5 text-sm text-muted-foreground">{property?.address ?? "No address"}</p>
               {property?.lawn_size && (
                 <p className="mt-0.5 text-xs text-muted-foreground">Lawn size: {property.lawn_size}</p>
