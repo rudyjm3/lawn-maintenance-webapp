@@ -1,6 +1,7 @@
 import Link from "next/link"
 import {
   AlertTriangle,
+  ArrowRight,
   Building2,
   CalendarX2,
   ClipboardList,
@@ -69,6 +70,9 @@ export default async function DashboardPage() {
     unscheduledJobsResult,
     todayRoutesResult,
     recentClientsResult,
+    autopayCountResult,
+    autoInvoicesCountResult,
+    remindersCountResult,
   ] = await Promise.all([
     db.from("clients").select("id", { count: "exact", head: true }),
     db.from("properties").select("id", { count: "exact", head: true }),
@@ -117,6 +121,21 @@ export default async function DashboardPage() {
       .select("id, name, created_at")
       .order("created_at", { ascending: false })
       .limit(6),
+    db
+      .from("payments")
+      .select("id", { count: "exact", head: true })
+      .eq("method", "stripe_autopay")
+      .eq("payment_date", today),
+    db
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("auto_generated", true)
+      .eq("auto_generation_batch_date", today),
+    db
+      .from("invoice_reminders")
+      .select("id", { count: "exact", head: true })
+      .gte("sent_at", `${today}T00:00:00.000Z`)
+      .lt("sent_at", `${today}T23:59:59.999Z`),
   ])
 
   const clientsCount = clientsCountResult.count ?? 0
@@ -132,6 +151,9 @@ export default async function DashboardPage() {
     stops: [...(r.stops ?? [])].sort((a, b) => a.stop_order - b.stop_order),
   }))
   const recentClients = (recentClientsResult.data ?? []) as RecentClient[]
+  const autopayCount = autopayCountResult.count ?? 0
+  const autoInvoicesCount = autoInvoicesCountResult.count ?? 0
+  const remindersCount = remindersCountResult.count ?? 0
 
   const week = buildWeekSnapshot(weekJobs, weekStart, CAPACITY_MINUTES)
   const activity = buildActivity(recentClients)
@@ -217,11 +239,24 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3 space-y-4">
-          {todayRoutes.length === 0 ? (
-            <RoutePreview route={null} />
-          ) : (
-            todayRoutes.map((r) => <RoutePreview key={r.id} route={r} />)
-          )}
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="max-h-[400px] overflow-y-auto p-4 space-y-4">
+              {todayRoutes.length === 0 ? (
+                <RoutePreview route={null} />
+              ) : (
+                todayRoutes.map((r) => <RoutePreview key={r.id} route={r} />)
+              )}
+            </div>
+            <div className="border-t border-border bg-card px-4 py-3">
+              <Link
+                href="/routes"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                View All Routes
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
         </div>
         <div className="lg:col-span-2">
           <WeekSnapshot days={week} />
@@ -232,8 +267,43 @@ export default async function DashboardPage() {
         <div className="lg:col-span-3">
           <ActivityFeed items={activity} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
+          <BillingAutomationCard
+            autopayCount={autopayCount}
+            autoInvoicesCount={autoInvoicesCount}
+            remindersCount={remindersCount}
+          />
           <QuickActions />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BillingAutomationCard({
+  autopayCount,
+  autoInvoicesCount,
+  remindersCount,
+}: {
+  autopayCount: number
+  autoInvoicesCount: number
+  remindersCount: number
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h3 className="mb-4 text-sm font-semibold text-foreground">Billing Automation (Today)</h3>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <p className="text-[11px] text-muted-foreground">Autopay</p>
+          <p className="mt-1 text-lg font-semibold text-foreground">{autopayCount}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <p className="text-[11px] text-muted-foreground">Auto-Invoices</p>
+          <p className="mt-1 text-lg font-semibold text-foreground">{autoInvoicesCount}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <p className="text-[11px] text-muted-foreground">Reminders</p>
+          <p className="mt-1 text-lg font-semibold text-foreground">{remindersCount}</p>
         </div>
       </div>
     </div>

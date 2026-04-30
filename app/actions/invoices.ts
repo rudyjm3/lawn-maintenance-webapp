@@ -5,6 +5,7 @@ import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { getNextInvoiceNumber } from "@/lib/billing/invoice-numbers"
 import { roundCents } from "@/lib/billing/tax"
+import { buildInvoiceItemsFromCompletedJobs } from "@/lib/billing/auto-invoice"
 import { z } from "zod"
 import { type InvoiceStatus } from "@/types"
 
@@ -164,19 +165,8 @@ export async function generateInvoiceFromJobs(
   if (jobsError) return { success: false, message: jobsError.message }
   if (!jobs?.length) return { success: false, message: "No completed jobs found." }
 
-  const items = jobs.map(
-    (job: { id: string; price: number; service_date: string | null; service_type?: { name: string }; property?: { address: string } }) => ({
-      job_id: job.id,
-      description: [
-        job.service_type?.name ?? "Service",
-        job.property?.address ? `— ${job.property.address}` : null,
-        job.service_date ? `(${new Date(job.service_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })})` : null,
-      ]
-        .filter(Boolean)
-        .join(" "),
-      qty: 1,
-      unit_price: Number(job.price),
-    }),
+  const items = buildInvoiceItemsFromCompletedJobs(
+    jobs as Array<{ id: string; price: number; service_date: string | null; service_type?: { name?: string }; property?: { address?: string } }>,
   )
 
   return saveInvoice({ client_id, due_date, tax_rate, notes, items })
@@ -509,3 +499,6 @@ export async function batchGenerateInvoices(input: {
     sentCount,
   }
 }
+
+
+
