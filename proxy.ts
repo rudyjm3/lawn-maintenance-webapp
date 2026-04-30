@@ -47,12 +47,32 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Redirect authenticated users away from auth pages
-  const isAuthRoute = AUTH_ROUTES.some((p) => pathname.startsWith(p))
-  if (isAuthRoute && user) {
-    const dashboardUrl = request.nextUrl.clone()
-    dashboardUrl.pathname = "/dashboard"
-    return NextResponse.redirect(dashboardUrl)
+  if (user) {
+    const role = (user.user_metadata?.role as string | undefined) ?? "owner"
+    const isCrewRole = role === "crew_member" || role === "crew_lead"
+
+    // Crew member trying to access owner/dashboard routes → crew today
+    const isDashboardRoute = ["/dashboard", "/onboarding", "/schedule", "/routes", "/jobs", "/clients", "/properties", "/service-catalog", "/schedules", "/crews", "/leads", "/estimates", "/invoices", "/payments", "/reports", "/settings"].some((p) => pathname.startsWith(p))
+    if (isDashboardRoute && isCrewRole) {
+      const dest = request.nextUrl.clone()
+      dest.pathname = "/crew/today"
+      return NextResponse.redirect(dest)
+    }
+
+    // Owner/manager trying to access crew routes → dashboard
+    if (pathname.startsWith("/crew") && !isCrewRole) {
+      const dest = request.nextUrl.clone()
+      dest.pathname = "/dashboard"
+      return NextResponse.redirect(dest)
+    }
+
+    // Redirect authenticated users away from auth pages
+    const isAuthRoute = AUTH_ROUTES.some((p) => pathname.startsWith(p))
+    if (isAuthRoute) {
+      const dest = request.nextUrl.clone()
+      dest.pathname = isCrewRole ? "/crew/today" : "/dashboard"
+      return NextResponse.redirect(dest)
+    }
   }
 
   return supabaseResponse
