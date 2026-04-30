@@ -85,6 +85,8 @@ export async function createAutopaySetupSession(input: {
   const session = await stripe.checkout.sessions.create({
     mode: "setup",
     customer: customerId,
+    currency: "usd",
+    payment_method_types: ["card"],
     success_url: `${appUrl}/clients/${input.clientId}?autopay_setup=1`,
     cancel_url: `${appUrl}/clients/${input.clientId}?autopay_setup=0`,
     metadata: {
