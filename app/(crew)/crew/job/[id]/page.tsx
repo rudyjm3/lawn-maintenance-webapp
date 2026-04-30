@@ -115,6 +115,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         db.from("jobs")
           .select(`
             id, status, estimated_duration_min, photo_required, business_id,
+            title, description,
             client:clients(id, name, phone),
             property:properties(
               id, address, access_notes, gate_code, pet_notes, lawn_size,
@@ -285,13 +286,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function buildChecklist(job: any): string[] {
-    // Use job-specific instructions first, then fall back to property service instructions
+    // Priority: job description → property service instructions → property-level service instructions
     const instructions: string =
+      job?.description ??
       job?.property_service?.instructions ??
       job?.property?.property_services?.[0]?.instructions ??
       ""
     if (!instructions) {
-      // Use job's service name, or first property service name as fallback
       const svcName: string =
         job?.property_service?.service_type?.name ??
         job?.property?.property_services?.[0]?.service_type?.name ??
@@ -356,6 +357,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               <h1 className="text-lg font-semibold text-foreground leading-tight">
                 {client?.name ?? "Client"}
               </h1>
+              {job.title && (
+                <p className="mt-0.5 text-sm font-medium text-foreground">{job.title}</p>
+              )}
               <div className="mt-1 flex flex-wrap gap-1">
                 {svc?.name ? (
                   <Badge variant="secondary" className="text-xs font-medium">
