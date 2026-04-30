@@ -60,7 +60,8 @@ export async function proxy(request: NextRequest) {
     }
 
     // Owner/manager trying to access crew routes → dashboard
-    if (pathname.startsWith("/crew") && !isCrewRole) {
+    // Use "/crew/" to avoid matching "/crews" (the dashboard Crews & Team page)
+    if ((pathname.startsWith("/crew/") || pathname === "/crew") && !isCrewRole) {
       const dest = request.nextUrl.clone()
       dest.pathname = "/dashboard"
       return NextResponse.redirect(dest)
