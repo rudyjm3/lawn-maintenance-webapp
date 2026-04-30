@@ -295,6 +295,7 @@ export interface Invoice {
   tax: number
   total: number
   due_date: string | null
+  notes: string | null
   stripe_payment_link: string | null
   stripe_payment_intent_id: string | null
   created_at: string
