@@ -107,6 +107,11 @@ If port 3000 is still busy, Next may start on `http://localhost:3001`. Stop the 
 ## 6. Other useful commands
 
 ```bash
+
+**Stripe**
+#After starting the dev server, run command below in a separate terminal:
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
+
 # Type-check the project
 npx tsc --noEmit
 
