@@ -1,6 +1,9 @@
+import Link from "next/link"
+import { LayoutList } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { InvoicesTable } from "@/components/invoices/invoices-table"
 import { GenerateFromJobsDialog } from "@/components/invoices/generate-from-jobs-dialog"
+import { Button } from "@/components/ui/button"
 import type { Invoice, Client, Job } from "@/types"
 
 export const metadata = { title: "Invoices" }
@@ -62,7 +65,15 @@ export default async function InvoicesPage() {
             {invoices.length} total · {uninvoicedJobs.length} completed job{uninvoicedJobs.length !== 1 ? "s" : ""} ready to invoice
           </p>
         </div>
-        <GenerateFromJobsDialog clients={clients} uninvoicedJobs={uninvoicedJobs} />
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/invoices/batch">
+              <LayoutList className="h-4 w-4 mr-1.5" />
+              Batch Invoice
+            </Link>
+          </Button>
+          <GenerateFromJobsDialog clients={clients} uninvoicedJobs={uninvoicedJobs} />
+        </div>
       </div>
 
       {invoices.length > 0 && (

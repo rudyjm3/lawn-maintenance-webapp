@@ -382,3 +382,130 @@ export async function recordPayment(values: RecordPaymentValues): Promise<Invoic
   revalidatePath(`/invoices/${invoice_id}`)
   return { success: true, message: `Payment of $${amount.toFixed(2)} recorded.` }
 }
+
+// ─── Batch invoice generation ─────────────────────────────────────────────────
+
+export type BatchInvoiceResult = {
+  clientId: string
+  clientName: string
+  invoiceId?: string
+  invoiceNumber?: string
+  status: "draft" | "sent" | "skipped_no_email" | "error"
+  error?: string
+}
+
+export type BatchGenerateActionState =
+  | { success: true; message: string; results: BatchInvoiceResult[]; createdCount: number; sentCount: number }
+  | { success: false; message: string }
+
+export async function batchGenerateInvoices(input: {
+  client_ids: string[]
+  items: { description: string; qty: number; unit_price: number }[]
+  due_date?: string | null
+  tax_rate?: number
+  notes?: string | null
+  send_immediately?: boolean
+}): Promise<BatchGenerateActionState> {
+  if (!input.client_ids || input.client_ids.length === 0) {
+    return { success: false, message: "Select at least one client." }
+  }
+  if (!input.items || input.items.length === 0 || input.items.every((i) => !i.description.trim())) {
+    return { success: false, message: "At least one line item is required." }
+  }
+
+  const supabase = await createSupabaseClient()
+  const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  const { data: clients, error: clientsError } = await db
+    .from("clients")
+    .select("id, name")
+    .eq("business_id", businessId)
+    .in("id", input.client_ids)
+
+  if (clientsError) return { success: false, message: clientsError.message }
+
+  const clientMap: Record<string, string> = {}
+  for (const c of clients ?? []) clientMap[c.id] = c.name
+
+  const taxRate = input.tax_rate ?? 0
+  const validItems = input.items.filter((i) => i.description.trim())
+  const subtotal = roundCents(validItems.reduce((sum, i) => sum + i.qty * i.unit_price, 0))
+  const tax = roundCents(subtotal * (taxRate / 100))
+  const total = roundCents(subtotal + tax)
+
+  const results: BatchInvoiceResult[] = []
+
+  for (const client_id of input.client_ids) {
+    const clientName = clientMap[client_id] ?? "Unknown"
+
+    const invoice_number = await getNextInvoiceNumber(db, businessId)
+
+    const { data: inv, error: invError } = await db
+      .from("invoices")
+      .insert({
+        business_id: businessId,
+        client_id,
+        invoice_number,
+        status: "draft",
+        subtotal,
+        tax,
+        total,
+        due_date: input.due_date ?? null,
+        notes: input.notes ?? null,
+      })
+      .select("id")
+      .single()
+
+    if (invError) {
+      results.push({ clientId: client_id, clientName, status: "error", error: invError.message })
+      continue
+    }
+
+    const itemRows = validItems.map((item) => ({
+      business_id: businessId,
+      invoice_id: inv.id,
+      job_id: null,
+      description: item.description,
+      qty: item.qty,
+      unit_price: item.unit_price,
+      total_price: roundCents(item.qty * item.unit_price),
+    }))
+
+    const { error: itemsError } = await db.from("invoice_items").insert(itemRows)
+    if (itemsError) {
+      results.push({ clientId: client_id, clientName, invoiceId: inv.id, invoiceNumber: invoice_number, status: "error", error: itemsError.message })
+      continue
+    }
+
+    if (!input.send_immediately) {
+      results.push({ clientId: client_id, clientName, invoiceId: inv.id, invoiceNumber: invoice_number, status: "draft" })
+      continue
+    }
+
+    const sendResult = await sendInvoice(inv.id)
+    if (sendResult.success) {
+      results.push({ clientId: client_id, clientName, invoiceId: inv.id, invoiceNumber: invoice_number, status: "sent" })
+    } else if (sendResult.message.toLowerCase().includes("no email")) {
+      results.push({ clientId: client_id, clientName, invoiceId: inv.id, invoiceNumber: invoice_number, status: "skipped_no_email" })
+    } else {
+      results.push({ clientId: client_id, clientName, invoiceId: inv.id, invoiceNumber: invoice_number, status: "error", error: sendResult.message })
+    }
+  }
+
+  revalidatePath("/invoices")
+
+  const createdCount = results.filter((r) => r.status !== "error").length
+  const sentCount = results.filter((r) => r.status === "sent").length
+
+  return {
+    success: true,
+    message: `${createdCount} invoice(s) created${sentCount > 0 ? `, ${sentCount} sent` : ""}.`,
+    results,
+    createdCount,
+    sentCount,
+  }
+}
