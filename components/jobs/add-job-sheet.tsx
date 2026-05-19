@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import type { Client, Property } from "@/types"
 
 interface AddJobSheetProps {
@@ -38,6 +39,8 @@ interface AddJobSheetProps {
 interface JobFormValues {
   client_id: string
   property_id: string
+  title: string
+  description: string
   service_date: string
   estimated_duration_min: string
   price: string
@@ -64,6 +67,8 @@ export function AddJobSheet({
     defaultValues: {
       client_id: defaultClientId ?? "",
       property_id: "",
+      title: "",
+      description: "",
       service_date: "",
       estimated_duration_min: "60",
       price: "0",
@@ -84,6 +89,8 @@ export function AddJobSheet({
     const result = await saveOneOffJob({
       client_id: data.client_id,
       property_id: data.property_id,
+      title: data.title,
+      description: data.description,
       service_date: data.service_date,
       estimated_duration_min: Number(data.estimated_duration_min),
       price: Number(data.price),
@@ -162,6 +169,27 @@ export function AddJobSheet({
               </SelectContent>
             </Select>
             {errors.property_id && <p className="text-xs text-destructive">Property is required</p>}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="title">Job title</Label>
+            <Input
+              id="title"
+              placeholder="e.g. Spring cleanup, Gutter cleaning…"
+              {...register("title")}
+            />
+            <p className="text-xs text-muted-foreground">Shown to the crew on the job detail page</p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="description">Description / instructions</Label>
+            <Textarea
+              id="description"
+              placeholder="Describe what needs to be done, any special instructions…"
+              rows={3}
+              className="resize-none"
+              {...register("description")}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

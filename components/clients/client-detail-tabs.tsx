@@ -517,6 +517,34 @@ function JobHistoryTab({ jobs }: { jobs: Job[] }) {
   )
 }
 
+function RevenueSummaryStrip({
+  summary,
+}: {
+  summary: { earned: number; collected: number; outstanding: number; paymentCount: number; lastPaymentDate: string | null }
+}) {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      {[
+        { label: "Revenue Earned", value: `$${summary.earned.toFixed(2)}` },
+        { label: "Revenue Collected", value: `$${summary.collected.toFixed(2)}` },
+        { label: "Outstanding", value: `$${summary.outstanding.toFixed(2)}` },
+        { label: "Payments", value: String(summary.paymentCount) },
+        {
+          label: "Last Payment",
+          value: summary.lastPaymentDate
+            ? new Date(`${summary.lastPaymentDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+            : "—",
+        },
+      ].map((card) => (
+        <div key={card.label} className="rounded-xl border border-border bg-card p-3">
+          <p className="text-xs text-muted-foreground">{card.label}</p>
+          <p className="text-sm font-semibold text-foreground mt-1">{card.value}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Activity tab ─────────────────────────────────────────────────────────────
 
 const CHANNEL_CONFIG = {
@@ -717,6 +745,7 @@ interface ClientDetailTabsProps {
   serviceTypes: ServiceType[]
   propertyServices: PropertyService[]
   communications: Communication[]
+  revenueSummary: { earned: number; collected: number; outstanding: number; paymentCount: number; lastPaymentDate: string | null }
 }
 
 export function ClientDetailTabs({
@@ -726,6 +755,7 @@ export function ClientDetailTabs({
   serviceTypes,
   propertyServices,
   communications,
+  revenueSummary,
 }: ClientDetailTabsProps) {
   return (
     <Tabs defaultValue="overview" className="space-y-5">
@@ -768,7 +798,10 @@ export function ClientDetailTabs({
         />
       </TabsContent>
       <TabsContent value="history">
-        <JobHistoryTab jobs={jobs} />
+        <div className="space-y-3">
+          <RevenueSummaryStrip summary={revenueSummary} />
+          <JobHistoryTab jobs={jobs} />
+        </div>
       </TabsContent>
       <TabsContent value="activity">
         <ActivityTab client={client} communications={communications} />

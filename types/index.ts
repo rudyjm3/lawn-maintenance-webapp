@@ -31,6 +31,14 @@ export type PhotoType = "before" | "after" | "reference" | "issue"
 export type OptimizationStatus = "pending" | "optimized" | "manual"
 
 export type CommChannel = "email" | "sms" | "app"
+export type AutopayMode = "invoice_due_date"
+export type AutopayStatus = "idle" | "succeeded" | "failed"
+export type InvoiceReminderType =
+  | "due_minus_3"
+  | "due_day"
+  | "overdue_plus_3"
+  | "overdue_plus_7"
+  | "overdue_notice"
 
 // ─── Core entities ────────────────────────────────────────────────────────────
 
@@ -240,6 +248,7 @@ export interface Estimate {
   tax: number
   total: number
   valid_until: string | null
+  notes: string | null
   created_at: string
   updated_at: string
   // Joined
@@ -257,25 +266,6 @@ export interface EstimateItem {
   unit_price: number
   total_price: number
   duration_min: number | null
-  created_at: string
-}
-
-export interface Invoice {
-  id: string
-  business_id: string
-  client_id: string
-  invoice_number: string
-  status: InvoiceStatus
-  subtotal: number
-  tax: number
-  total: number
-  due_date: string
-  created_at: string
-  updated_at: string
-  // Joined
-  client?: Client
-  items?: InvoiceItem[]
-  payments?: Payment[]
 }
 
 export interface InvoiceItem {
@@ -287,7 +277,6 @@ export interface InvoiceItem {
   qty: number
   unit_price: number
   total_price: number
-  created_at: string
 }
 
 export interface Payment {
@@ -301,7 +290,57 @@ export interface Payment {
   notes: string | null
   created_at: string
   // Joined
-  invoice?: Pick<Invoice, "id" | "invoice_number" | "total" | "client">
+  invoice?: Invoice
+}
+
+export interface Invoice {
+  id: string
+  business_id: string
+  client_id: string
+  invoice_number: string
+  status: InvoiceStatus
+  subtotal: number
+  tax: number
+  total: number
+  due_date: string | null
+  notes: string | null
+  stripe_payment_link: string | null
+  stripe_payment_intent_id: string | null
+  auto_generated?: boolean
+  auto_generation_batch_date?: string | null
+  autopay_attempted_at?: string | null
+  autopay_status?: AutopayStatus
+  created_at: string
+  updated_at: string
+  // Joined
+  client?: Client
+  items?: InvoiceItem[]
+  payments?: Payment[]
+}
+
+export interface ClientBillingSettings {
+  id: string
+  business_id: string
+  client_id: string
+  autopay_enabled: boolean
+  autopay_mode: AutopayMode
+  stripe_customer_id: string | null
+  stripe_default_payment_method_id: string | null
+  stripe_default_payment_method_brand: string | null
+  stripe_default_payment_method_last4: string | null
+  reminder_days_before: number[]
+  reminder_days_after: number[]
+  next_billing_run_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface InvoiceReminder {
+  id: string
+  business_id: string
+  invoice_id: string
+  reminder_type: InvoiceReminderType
+  sent_at: string
 }
 
 export interface Communication {

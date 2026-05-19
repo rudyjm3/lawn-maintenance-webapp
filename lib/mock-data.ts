@@ -169,7 +169,7 @@ export const mockLeads: Lead[] = [
 // ─── Invoices (overdue) ───────────────────────────────────────────────────────
 
 export const mockOverdueInvoices: Invoice[] = [
-  { id: "inv-1", business_id: "t-1", client_id: "c-2", invoice_number: "INV-041", status: "overdue", subtotal: 340, tax: 0, total: 340, due_date: isoDate(-14), created_at: isoDateTime(-30, 9), client: mockClients[1] },
+  { id: "inv-1", business_id: "t-1", client_id: "c-2", invoice_number: "INV-041", status: "overdue", subtotal: 340, tax: 0, total: 340, due_date: isoDate(-14), notes: null, stripe_payment_link: null, stripe_payment_intent_id: null, created_at: isoDateTime(-30, 9), updated_at: isoDateTime(-30, 9), client: mockClients[1] },
 ]
 
 // ─── Dashboard KPIs ───────────────────────────────────────────────────────────

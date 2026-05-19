@@ -12,6 +12,8 @@ export type JobActionState =
 const OneOffJobSchema = z.object({
   client_id: z.string().min(1, "Client is required"),
   property_id: z.string().min(1, "Property is required"),
+  title: z.string().max(120).optional().or(z.literal("")),
+  description: z.string().max(2000).optional().or(z.literal("")),
   service_date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -49,7 +51,7 @@ export async function saveOneOffJob(values: OneOffJobFormValues): Promise<JobAct
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
-  const { client_id, property_id, service_date, estimated_duration_min, price, photo_required } = parsed.data
+  const { client_id, property_id, title, description, service_date, estimated_duration_min, price, photo_required } = parsed.data
 
   const { data: property, error: propertyError } = await db
     .from("properties")
@@ -71,6 +73,8 @@ export async function saveOneOffJob(values: OneOffJobFormValues): Promise<JobAct
     client_id,
     property_id,
     property_service_id: null,
+    title: title || null,
+    description: description || null,
     service_date: service_date || null,
     status: service_date ? "scheduled" : "unscheduled",
     estimated_duration_min,

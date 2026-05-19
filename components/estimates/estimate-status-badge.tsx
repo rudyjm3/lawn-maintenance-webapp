@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 const STATUS_CONFIG: Record<EstimateStatus, { label: string; className: string }> = {
   draft: {
     label: "Draft",
-    className: "bg-muted text-muted-foreground",
+    className: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
   },
   sent: {
     label: "Sent",
