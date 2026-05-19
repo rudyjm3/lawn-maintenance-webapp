@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useEffect } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
 import { toast } from "sonner"
@@ -44,10 +44,11 @@ export function GenerateFromJobsDialog({ clients, uninvoicedJobs }: Props) {
 
   const clientJobs = uninvoicedJobs.filter((j) => j.client_id === clientId)
 
-  useEffect(() => {
-    setSelectedJobIds(clientJobs.map((j) => j.id))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientId])
+  function handleClientChange(newClientId: string) {
+    setClientId(newClientId)
+    const jobs = uninvoicedJobs.filter((j) => j.client_id === newClientId)
+    setSelectedJobIds(jobs.map((j) => j.id))
+  }
 
   function toggleJob(id: string) {
     setSelectedJobIds((prev) =>
@@ -116,7 +117,7 @@ export function GenerateFromJobsDialog({ clients, uninvoicedJobs }: Props) {
             <select
               id="client"
               value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
+              onChange={(e) => handleClientChange(e.target.value)}
               required
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
