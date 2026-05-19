@@ -4,6 +4,8 @@ import {
   Building2,
   CalendarX2,
   ClipboardList,
+  CreditCard,
+  DollarSign,
   Map,
   PackageCheck,
   Receipt,
@@ -58,12 +60,18 @@ export default async function DashboardPage() {
   const weekStart = startOfWeekUtc(new Date())
   const weekEnd = formatUtcDate(addUtcDays(weekStart, 6))
 
+  const now = new Date()
+  const mtdStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10)
+  const mtdEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10)
+
   const [
     clientsCountResult,
     propertiesCountResult,
     servicesCountResult,
     leadsCountResult,
     invoicesCountResult,
+    outstandingInvoicesResult,
+    mtdPaymentsResult,
     todayJobsResult,
     weekJobsResult,
     unscheduledJobsResult,
@@ -81,6 +89,16 @@ export default async function DashboardPage() {
       .from("invoices")
       .select("id", { count: "exact", head: true })
       .eq("status", "overdue"),
+    db
+      .from("invoices")
+      .select("total")
+      .not("status", "in", '("void","paid")')
+      .lte("created_at", mtdEnd),
+    db
+      .from("payments")
+      .select("amount")
+      .gte("payment_date", mtdStart)
+      .lte("payment_date", mtdEnd),
     db
       .from("jobs")
       .select("*, client:clients(name), property:properties(address)")
@@ -117,13 +135,17 @@ export default async function DashboardPage() {
       .select("id, name, created_at")
       .order("created_at", { ascending: false })
       .limit(6),
-  ])
+  ] as const)
 
   const clientsCount = clientsCountResult.count ?? 0
   const propertiesCount = propertiesCountResult.count ?? 0
   const servicesCount = servicesCountResult.count ?? 0
   const openLeadsCount = leadsCountResult.count ?? 0
   const overdueCount = invoicesCountResult.count ?? 0
+  const outstandingBalance = ((outstandingInvoicesResult.data ?? []) as { total: number }[])
+    .reduce((sum, inv) => sum + (Number(inv.total) || 0), 0)
+  const mtdCollected = ((mtdPaymentsResult.data ?? []) as { amount: number }[])
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
   const todayJobs = (todayJobsResult.data ?? []) as JobRow[]
   const weekJobs = (weekJobsResult.data ?? []) as JobRow[]
   const unassignedCount = unscheduledJobsResult.count ?? 0
@@ -159,6 +181,27 @@ export default async function DashboardPage() {
           icon={Users}
         />
         <KpiCard
+          title="Today's Jobs"
+          value={todayJobs.length}
+          sub={`${todaysCompleted} completed`}
+          icon={ClipboardList}
+        />
+        <KpiCard
+          title="Outstanding"
+          value={outstandingBalance.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
+          sub="Unpaid invoices"
+          icon={Receipt}
+        />
+        <KpiCard
+          title="Collected MTD"
+          value={mtdCollected.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
+          sub="This month"
+          icon={CreditCard}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiCard
           title="Properties"
           value={propertiesCount}
           sub="Service locations"
@@ -171,10 +214,16 @@ export default async function DashboardPage() {
           icon={PackageCheck}
         />
         <KpiCard
-          title="Today's Jobs"
-          value={todayJobs.length}
-          sub={`${todaysCompleted} completed`}
-          icon={ClipboardList}
+          title="Open Leads"
+          value={openLeadsCount}
+          sub="Active pipeline"
+          icon={Users}
+        />
+        <KpiCard
+          title="Overdue Invoices"
+          value={overdueCount}
+          sub="Past due date"
+          icon={DollarSign}
         />
       </div>
 
