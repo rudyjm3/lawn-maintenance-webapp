@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createAdminClient } from "@/lib/supabase/admin"
+import { createClient as createServerClient } from "@/lib/supabase/server"
 import { sendJobCompletionEmail } from "@/lib/email/send-job-completion"
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: jobId } = await params
 
-  const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
+  // Verify the caller has an active session
+  const serverClient = await createServerClient()
+  const { data: { user } } = await serverClient.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized." }, { status: 401 })
+  }
 
-  const { data: job, error } = await supabase
+  // Fetch through the RLS-scoped server client — only the caller's business is visible,
+  // so a mismatched job_id simply returns 404 instead of leaking another tenant's data
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: job, error } = await (serverClient as any)
     .from("jobs")
     .select(`
       id, title, status, actual_duration_min, service_date, client_id, business_id,
@@ -37,14 +44,23 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ success: false, message: "Client has no email address on file." })
   }
 
-  const { data: existing } = await db
+  // Use admin client only for tables that need RLS bypass (job_reminders, communications)
+  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = admin as any
+
+  // Atomic reservation: insert before sending so concurrent callers both hit the unique
+  // constraint — only the winner proceeds to send; the loser gets null back
+  const { data: reservation } = await db
     .from("job_reminders")
+    .upsert(
+      { business_id: job.business_id, job_id: jobId, reminder_type: "completion" },
+      { onConflict: "job_id,reminder_type", ignoreDuplicates: true },
+    )
     .select("id")
-    .eq("job_id", jobId)
-    .eq("reminder_type", "completion")
     .maybeSingle()
 
-  if (existing) {
+  if (!reservation) {
     return NextResponse.json({ success: true, message: "Completion email already sent." })
   }
 
@@ -55,13 +71,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const property = (Array.isArray(job.property) ? job.property[0] : job.property) as any
 
-  const { data: business } = await supabase
+  const { data: business } = await serverClient
     .from("businesses")
     .select("business_name")
     .eq("id", job.business_id)
     .single()
 
-  const { data: timeLog } = await supabase
+  const { data: timeLog } = await serverClient
     .from("time_logs")
     .select("notes")
     .eq("job_id", jobId)
@@ -84,13 +100,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   })
 
   if (result.success) {
-    await db.from("job_reminders").insert({
-      business_id: job.business_id,
-      job_id: jobId,
-      reminder_type: "completion",
-    })
-
-    await supabase.from("communications").insert({
+    await admin.from("communications").insert({
       business_id: job.business_id,
       client_id: job.client_id,
       job_id: jobId,

@@ -55,14 +55,18 @@ export async function POST(request: NextRequest) {
         const client = (Array.isArray(job.client) ? job.client[0] : job.client) as any
         if (!client?.email) continue
 
-        const { data: existing } = await db
+        // Atomic reservation: insert before sending so concurrent cron runs both hit the
+        // unique constraint — only the winner proceeds to send; the loser gets null back
+        const { data: reservation } = await db
           .from("job_reminders")
+          .upsert(
+            { business_id: business.id, job_id: job.id, reminder_type: "day_before" },
+            { onConflict: "job_id,reminder_type", ignoreDuplicates: true },
+          )
           .select("id")
-          .eq("job_id", job.id)
-          .eq("reminder_type", "day_before")
           .maybeSingle()
 
-        if (existing) continue
+        if (!reservation) continue
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const propSvc = (Array.isArray(job.property_service) ? job.property_service[0] : job.property_service) as any
@@ -82,12 +86,6 @@ export async function POST(request: NextRequest) {
         })
 
         if (result.success) {
-          await db.from("job_reminders").insert({
-            business_id: business.id,
-            job_id: job.id,
-            reminder_type: "day_before",
-          })
-
           await supabase.from("communications").insert({
             business_id: business.id,
             client_id: job.client_id,
