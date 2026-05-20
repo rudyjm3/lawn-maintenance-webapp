@@ -40,6 +40,16 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (invoice) {
+      const { data: existingPayment } = await db
+        .from("payments")
+        .select("id")
+        .eq("invoice_id", invoiceId)
+        .eq("reference", session.id)
+        .eq("business_id", businessId)
+        .maybeSingle()
+
+      if (existingPayment) return NextResponse.json({ received: true })
+
       await applyInvoicePayment(db, {
         businessId,
         invoiceId,

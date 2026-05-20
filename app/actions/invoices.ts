@@ -165,8 +165,22 @@ export async function generateInvoiceFromJobs(
   if (jobsError) return { success: false, message: jobsError.message }
   if (!jobs?.length) return { success: false, message: "No completed jobs found." }
 
+  const { data: alreadyInvoiced } = await db
+    .from("invoice_items")
+    .select("job_id")
+    .in("job_id", (jobs as any[]).map((j) => j.id))
+    .eq("business_id", businessId)
+
+  const alreadyInvoicedIds = new Set(
+    ((alreadyInvoiced ?? []) as { job_id: string }[]).map((ii) => ii.job_id),
+  )
+  const uninvoicedJobs = (jobs as any[]).filter((j) => !alreadyInvoicedIds.has(j.id))
+  if (!uninvoicedJobs.length) {
+    return { success: false, message: "All selected jobs have already been invoiced." }
+  }
+
   const items = buildInvoiceItemsFromCompletedJobs(
-    jobs as Array<{ id: string; price: number; service_date: string | null; service_type?: { name?: string }; property?: { address?: string } }>,
+    uninvoicedJobs as Array<{ id: string; price: number; service_date: string | null; service_type?: { name?: string }; property?: { address?: string } }>,
   )
 
   return saveInvoice({ client_id, due_date, tax_rate, notes, items })

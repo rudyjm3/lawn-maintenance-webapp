@@ -7,7 +7,7 @@ export async function applyInvoicePayment(db: any, params: {
   reference?: string | null
   notes?: string | null
 }) {
-  await db.from("payments").insert({
+  const { error: insertError } = await db.from("payments").insert({
     business_id: params.businessId,
     invoice_id: params.invoiceId,
     amount: params.amount,
@@ -16,6 +16,10 @@ export async function applyInvoicePayment(db: any, params: {
     reference: params.reference ?? null,
     notes: params.notes ?? null,
   })
+
+  if (insertError) {
+    throw new Error(`Failed to record payment: ${insertError.message}`)
+  }
 
   const { data: invoice } = await db
     .from("invoices")
