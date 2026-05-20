@@ -25,14 +25,12 @@ export async function POST(request: NextRequest) {
   if (!businessId) return NextResponse.json({ received: true })
 
   const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
 
   if (session.mode === "payment") {
     const invoiceId = session.metadata?.invoice_id
     if (!invoiceId) return NextResponse.json({ received: true })
 
-    const { data: invoice } = await db
+    const { data: invoice } = await supabase
       .from("invoices")
       .select("id, total, invoice_number, client_id")
       .eq("id", invoiceId)
@@ -40,7 +38,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (invoice) {
-      await applyInvoicePayment(db, {
+      await applyInvoicePayment(supabase, {
         businessId,
         invoiceId,
         amount: Number(invoice.total),
@@ -50,17 +48,17 @@ export async function POST(request: NextRequest) {
         notes: "Paid via Stripe",
       })
 
-      await db
+      await supabase
         .from("invoices")
         .update({
-          stripe_payment_intent_id: session.payment_intent ?? null,
+          stripe_payment_intent_id: typeof session.payment_intent === "string" ? session.payment_intent : null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", invoiceId)
         .eq("business_id", businessId)
 
       if (invoice.client_id) {
-        await db.from("communications").insert({
+        await supabase.from("communications").insert({
           business_id: businessId,
           client_id: invoice.client_id,
           channel: "email",
@@ -81,7 +79,7 @@ export async function POST(request: NextRequest) {
     const paymentMethod = setupIntent.payment_method as { id: string; card?: { brand?: string; last4?: string } } | null
 
     if (paymentMethod) {
-      await db.from("client_billing_settings").upsert(
+      await supabase.from("client_billing_settings").upsert(
         {
           business_id: businessId,
           client_id: clientId,

@@ -106,19 +106,24 @@ If port 3000 is still busy, Next may start on `http://localhost:3001`. Stop the 
 
 ## 6. Other useful commands
 
-```bash
-
 **Stripe**
-#After starting the dev server, run command below in a separate terminal:
+
+After starting the dev server, run in a separate terminal:
+
+```bash
 stripe listen --forward-to localhost:3000/api/webhooks/stripe
+```
 
 **Overdue Automation / Batch Invoicing**
-# To test the cron locally:
-# Set a test invoice's due_date to yesterday with status = 'sent' in Supabase first.
+
+Set a test invoice's `due_date` to yesterday with `status = 'sent'` in Supabase first, then:
+
+```bash
 curl -X POST http://localhost:3000/api/cron/mark-overdue \
   -H "Authorization: Bearer replace-me-local-secret"
+```
 
-
+```bash
 # Type-check the project
 npx tsc --noEmit
 

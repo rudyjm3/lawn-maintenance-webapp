@@ -13,10 +13,8 @@ export async function POST(request: NextRequest) {
 
   const today = todayUtc()
   const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
 
-  const { data: invoices, error } = await db
+  const { data: invoices, error } = await supabase
     .from("invoices")
     .select("id, business_id, client_id, total, due_date, status, autopay_attempted_at, payments:payments(amount)")
     .in("status", ["sent", "partial", "overdue"])
@@ -28,7 +26,7 @@ export async function POST(request: NextRequest) {
   const results: Array<{ invoiceId: string; status: "paid" | "skipped" | "failed"; error?: string }> = []
 
   for (const invoice of invoices ?? []) {
-    const { data: billing } = await db
+    const { data: billing } = await supabase
       .from("client_billing_settings")
       .select("autopay_enabled, stripe_customer_id, stripe_default_payment_method_id")
       .eq("business_id", invoice.business_id)
@@ -73,7 +71,7 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      await applyInvoicePayment(db, {
+      await applyInvoicePayment(supabase, {
         businessId: invoice.business_id,
         invoiceId: invoice.id,
         amount: outstanding,
@@ -83,7 +81,7 @@ export async function POST(request: NextRequest) {
         notes: "Paid via autopay",
       })
 
-      await db
+      await supabase
         .from("invoices")
         .update({
           autopay_attempted_at: new Date().toISOString(),
@@ -96,7 +94,7 @@ export async function POST(request: NextRequest) {
 
       results.push({ invoiceId: invoice.id, status: "paid" })
     } catch (err) {
-      await db
+      await supabase
         .from("invoices")
         .update({
           autopay_attempted_at: new Date().toISOString(),

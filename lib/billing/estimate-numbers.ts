@@ -1,5 +1,7 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function getNextEstimateNumber(db: any, businessId: string): Promise<string> {
+import type { SupabaseClient } from "@supabase/supabase-js"
+import type { Database } from "@/types/supabase"
+
+export async function getNextEstimateNumber(db: SupabaseClient<Database>, businessId: string): Promise<string> {
   const { data } = await db
     .from("estimates")
     .select("estimate_number")

@@ -49,8 +49,6 @@ export async function saveInvoice(values: InvoiceFormValues): Promise<InvoiceAct
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
   const { id, client_id, due_date, tax_rate, notes, items } = parsed.data
 
   const subtotal = roundCents(items.reduce((sum, item) => sum + item.qty * item.unit_price, 0))
@@ -58,7 +56,7 @@ export async function saveInvoice(values: InvoiceFormValues): Promise<InvoiceAct
   const total = roundCents(subtotal + tax)
 
   if (id) {
-    const { error } = await db
+    const { error } = await supabase
       .from("invoices")
       .update({ client_id, due_date: due_date ?? null, subtotal, tax, total, notes: notes ?? null, updated_at: new Date().toISOString() })
       .eq("id", id)
@@ -66,7 +64,7 @@ export async function saveInvoice(values: InvoiceFormValues): Promise<InvoiceAct
 
     if (error) return { success: false, message: error.message }
 
-    await db.from("invoice_items").delete().eq("invoice_id", id).eq("business_id", businessId)
+    await supabase.from("invoice_items").delete().eq("invoice_id", id).eq("business_id", businessId)
 
     const itemRows = items.map((item) => ({
       business_id: businessId,
@@ -77,7 +75,7 @@ export async function saveInvoice(values: InvoiceFormValues): Promise<InvoiceAct
       unit_price: item.unit_price,
       total_price: roundCents(item.qty * item.unit_price),
     }))
-    const { error: itemsError } = await db.from("invoice_items").insert(itemRows)
+    const { error: itemsError } = await supabase.from("invoice_items").insert(itemRows)
     if (itemsError) return { success: false, message: itemsError.message }
 
     revalidatePath("/invoices")
@@ -85,9 +83,9 @@ export async function saveInvoice(values: InvoiceFormValues): Promise<InvoiceAct
     return { success: true, message: "Invoice updated.", id }
   }
 
-  const invoice_number = await getNextInvoiceNumber(db, businessId)
+  const invoice_number = await getNextInvoiceNumber(supabase, businessId)
 
-  const { data: inv, error: invError } = await db
+  const { data: inv, error: invError } = await supabase
     .from("invoices")
     .insert({
       business_id: businessId,
@@ -115,7 +113,7 @@ export async function saveInvoice(values: InvoiceFormValues): Promise<InvoiceAct
     total_price: roundCents(item.qty * item.unit_price),
   }))
 
-  const { error: itemsError } = await db.from("invoice_items").insert(itemRows)
+  const { error: itemsError } = await supabase.from("invoice_items").insert(itemRows)
   if (itemsError) return { success: false, message: itemsError.message }
 
   revalidatePath("/invoices")
@@ -149,12 +147,10 @@ export async function generateInvoiceFromJobs(
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
   const { client_id, job_ids, due_date, tax_rate, notes } = parsed.data
 
   // Fetch jobs with service type info
-  const { data: jobs, error: jobsError } = await db
+  const { data: jobs, error: jobsError } = await supabase
     .from("jobs")
     .select("id, price, service_date, service_type:service_types(name), property:properties(address)")
     .in("id", job_ids)
@@ -182,9 +178,7 @@ export async function updateInvoiceStatus(
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
-  const { error } = await db
+  const { error } = await supabase
     .from("invoices")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", invoiceId)
@@ -204,9 +198,7 @@ export async function deleteInvoice(invoiceId: string): Promise<InvoiceActionSta
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
-  const { error } = await db
+  const { error } = await supabase
     .from("invoices")
     .delete()
     .eq("id", invoiceId)
@@ -225,10 +217,8 @@ export async function sendInvoice(invoiceId: string): Promise<InvoiceActionState
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
 
-  const { data: invoice, error: invError } = await db
+  const { data: invoice, error: invError } = await supabase
     .from("invoices")
     .select("*, client:clients(*), items:invoice_items(*)")
     .eq("id", invoiceId)
@@ -269,11 +259,11 @@ export async function sendInvoice(invoiceId: string): Promise<InvoiceActionState
   })
 
   // Store payment link + intent ID on invoice
-  await db
+  await supabase
     .from("invoices")
     .update({
       stripe_payment_link: session.url,
-      stripe_payment_intent_id: session.payment_intent ?? null,
+      stripe_payment_intent_id: typeof session.payment_intent === "string" ? session.payment_intent : null,
       status: "sent",
       updated_at: new Date().toISOString(),
     })
@@ -288,7 +278,7 @@ export async function sendInvoice(invoiceId: string): Promise<InvoiceActionState
 
   // Log communication
   if (invoice.client_id) {
-    await db.from("communications").insert({
+    await supabase.from("communications").insert({
       business_id: businessId,
       client_id: invoice.client_id,
       channel: "email",
@@ -325,12 +315,10 @@ export async function recordPayment(values: RecordPaymentValues): Promise<Invoic
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
   const { invoice_id, amount, method, payment_date, reference, notes } = parsed.data
 
   // Fetch invoice total to determine new status
-  const { data: invoice, error: invError } = await db
+  const { data: invoice, error: invError } = await supabase
     .from("invoices")
     .select("total, payments:payments(amount)")
     .eq("id", invoice_id)
@@ -339,7 +327,7 @@ export async function recordPayment(values: RecordPaymentValues): Promise<Invoic
 
   if (invError || !invoice) return { success: false, message: "Invoice not found." }
 
-  const { error: payError } = await db.from("payments").insert({
+  const { error: payError } = await supabase.from("payments").insert({
     business_id: businessId,
     invoice_id,
     amount,
@@ -362,7 +350,7 @@ export async function recordPayment(values: RecordPaymentValues): Promise<Invoic
   const newStatus: InvoiceStatus =
     newPaid >= invoiceTotal ? "paid" : newPaid > 0 ? "partial" : "sent"
 
-  await db
+  await supabase
     .from("invoices")
     .update({ status: newStatus, updated_at: new Date().toISOString() })
     .eq("id", invoice_id)
@@ -407,10 +395,8 @@ export async function batchGenerateInvoices(input: {
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
 
-  const { data: clients, error: clientsError } = await db
+  const { data: clients, error: clientsError } = await supabase
     .from("clients")
     .select("id, name")
     .eq("business_id", businessId)
@@ -432,9 +418,9 @@ export async function batchGenerateInvoices(input: {
   for (const client_id of input.client_ids) {
     const clientName = clientMap[client_id] ?? "Unknown"
 
-    const invoice_number = await getNextInvoiceNumber(db, businessId)
+    const invoice_number = await getNextInvoiceNumber(supabase, businessId)
 
-    const { data: inv, error: invError } = await db
+    const { data: inv, error: invError } = await supabase
       .from("invoices")
       .insert({
         business_id: businessId,
@@ -465,7 +451,7 @@ export async function batchGenerateInvoices(input: {
       total_price: roundCents(item.qty * item.unit_price),
     }))
 
-    const { error: itemsError } = await db.from("invoice_items").insert(itemRows)
+    const { error: itemsError } = await supabase.from("invoice_items").insert(itemRows)
     if (itemsError) {
       results.push({ clientId: client_id, clientName, invoiceId: inv.id, invoiceNumber: invoice_number, status: "error", error: itemsError.message })
       continue

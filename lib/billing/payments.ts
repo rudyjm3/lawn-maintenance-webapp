@@ -1,4 +1,7 @@
-export async function applyInvoicePayment(db: any, params: {
+import type { SupabaseClient } from "@supabase/supabase-js"
+import type { Database } from "@/types/supabase"
+
+export async function applyInvoicePayment(db: SupabaseClient<Database>, params: {
   businessId: string
   invoiceId: string
   amount: number
