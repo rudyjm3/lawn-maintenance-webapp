@@ -234,6 +234,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       if (e4) throw new Error(e4.message)
 
       toast.success("Job completed.")
+      // Fire-and-forget — email failure must not block navigation
+      fetch(`/api/jobs/${job.id}/completion-email`, { method: "POST" }).catch(() => {})
       router.push("/crew/today")
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to complete job.")
