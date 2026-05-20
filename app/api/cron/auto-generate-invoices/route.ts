@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { todayUtc } from "@/lib/dates"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getNextInvoiceNumber } from "@/lib/billing/invoice-numbers"
-import { buildInvoiceItemsFromCompletedJobs, sumInvoiceItems } from "@/lib/billing/auto-invoice"
+import { buildInvoiceItemsFromCompletedJobs, getUninvoicedCompletedJobs, groupJobsByClient, sumInvoiceItems, type CompletedJobForInvoice } from "@/lib/billing/auto-invoice"
 
 export async function POST(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
@@ -13,25 +13,25 @@ export async function POST(request: NextRequest) {
 
   const batchDate = todayUtc()
   const supabase = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
 
-  const { data: businesses, error: businessesError } = await db.from("businesses").select("id")
+  const { data: businesses, error: businessesError } = await supabase.from("businesses").select("id")
   if (businessesError) return NextResponse.json({ error: businessesError.message }, { status: 500 })
 
   const results: Array<{ businessId: string; createdInvoices: number; jobsInvoiced: number; error?: string }> = []
 
   for (const business of businesses ?? []) {
     try {
-      const { data: invoicedItems } = await db
+      const { data: invoicedItems } = await supabase
         .from("invoice_items")
         .select("job_id")
         .eq("business_id", business.id)
         .not("job_id", "is", null)
 
-      const alreadyInvoicedIds = new Set<string>((invoicedItems ?? []).map((r: { job_id: string }) => r.job_id))
+      const alreadyInvoicedIds = new Set<string>(
+        (invoicedItems ?? []).map((r) => r.job_id).filter((id): id is string => id !== null),
+      )
 
-      const { data: completedJobs, error: jobsError } = await db
+      const { data: completedJobs, error: jobsError } = await supabase
         .from("jobs")
         .select("id, client_id, price, service_date, service_type:service_types(name), property:properties(address)")
         .eq("business_id", business.id)
@@ -39,23 +39,18 @@ export async function POST(request: NextRequest) {
 
       if (jobsError) throw new Error(jobsError.message)
 
-      const uninvoiced = (completedJobs ?? []).filter((job: { id: string }) => !alreadyInvoicedIds.has(job.id))
-      const grouped = new Map<string, typeof uninvoiced>()
-      for (const job of uninvoiced) {
-        const arr = grouped.get(job.client_id) ?? []
-        arr.push(job)
-        grouped.set(job.client_id, arr)
-      }
+      const uninvoiced = getUninvoicedCompletedJobs(completedJobs ?? [], alreadyInvoicedIds)
+      const grouped = groupJobsByClient(uninvoiced)
 
       let createdInvoices = 0
       let jobsInvoiced = 0
 
       for (const [clientId, jobs] of grouped.entries()) {
-        const items = buildInvoiceItemsFromCompletedJobs(jobs)
+        const items = buildInvoiceItemsFromCompletedJobs(jobs as unknown as CompletedJobForInvoice[])
         const totals = sumInvoiceItems(items, 0)
-        const invoiceNumber = await getNextInvoiceNumber(db, business.id)
+        const invoiceNumber = await getNextInvoiceNumber(supabase, business.id)
 
-        const { data: inv, error: invError } = await db
+        const { data: inv, error: invError } = await supabase
           .from("invoices")
           .insert({
             business_id: business.id,
@@ -84,9 +79,9 @@ export async function POST(request: NextRequest) {
           total_price: item.qty * item.unit_price,
         }))
 
-        const { error: itemsError } = await db.from("invoice_items").insert(itemRows)
+        const { error: itemsError } = await supabase.from("invoice_items").insert(itemRows)
         if (itemsError) {
-          await db.from("invoices").delete().eq("id", inv.id)
+          await supabase.from("invoices").delete().eq("id", inv.id)
           continue
         }
 

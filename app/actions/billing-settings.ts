@@ -18,10 +18,8 @@ export async function setClientAutopayEnabled(input: {
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
 
-  const { error } = await db.from("client_billing_settings").upsert(
+  const { error } = await supabase.from("client_billing_settings").upsert(
     {
       business_id: businessId,
       client_id: input.clientId,
@@ -44,10 +42,8 @@ export async function createAutopaySetupSession(input: {
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
 
-  const { data: client, error: clientError } = await db
+  const { data: client, error: clientError } = await supabase
     .from("clients")
     .select("id, name, email")
     .eq("id", input.clientId)
@@ -56,7 +52,7 @@ export async function createAutopaySetupSession(input: {
 
   if (clientError || !client) return { success: false, message: "Client not found." }
 
-  const { data: settings } = await db
+  const { data: settings } = await supabase
     .from("client_billing_settings")
     .select("stripe_customer_id")
     .eq("client_id", input.clientId)
@@ -71,7 +67,7 @@ export async function createAutopaySetupSession(input: {
     name: client.name,
   })
 
-  await db.from("client_billing_settings").upsert(
+  await supabase.from("client_billing_settings").upsert(
     {
       business_id: businessId,
       client_id: input.clientId,

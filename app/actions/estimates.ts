@@ -6,7 +6,7 @@ import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { getNextEstimateNumber } from "@/lib/billing/estimate-numbers"
 import { roundCents } from "@/lib/billing/tax"
 import { z } from "zod"
-import { type EstimateStatus } from "@/types"
+import { type Estimate, type EstimateStatus } from "@/types"
 
 export type EstimateActionState =
   | { success: true; message: string; id?: string }
@@ -49,8 +49,6 @@ export async function saveEstimate(values: EstimateFormValues): Promise<Estimate
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
   const { id, client_id, valid_until, tax_rate, notes, items } = parsed.data
 
   // Calculate totals
@@ -60,7 +58,7 @@ export async function saveEstimate(values: EstimateFormValues): Promise<Estimate
 
   if (id) {
     // Update existing estimate
-    const { error } = await db
+    const { error } = await supabase
       .from("estimates")
       .update({ client_id, valid_until: valid_until ?? null, subtotal, tax, total, notes: notes ?? null, updated_at: new Date().toISOString() })
       .eq("id", id)
@@ -69,7 +67,7 @@ export async function saveEstimate(values: EstimateFormValues): Promise<Estimate
     if (error) return { success: false, message: error.message }
 
     // Replace all items
-    await db.from("estimate_items").delete().eq("estimate_id", id).eq("business_id", businessId)
+    await supabase.from("estimate_items").delete().eq("estimate_id", id).eq("business_id", businessId)
 
     const itemRows = items.map((item) => ({
       business_id: businessId,
@@ -81,7 +79,7 @@ export async function saveEstimate(values: EstimateFormValues): Promise<Estimate
       total_price: roundCents(item.qty * item.unit_price),
       duration_min: item.duration_min ?? null,
     }))
-    const { error: itemsError } = await db.from("estimate_items").insert(itemRows)
+    const { error: itemsError } = await supabase.from("estimate_items").insert(itemRows)
     if (itemsError) return { success: false, message: itemsError.message }
 
     revalidatePath("/estimates")
@@ -90,38 +88,25 @@ export async function saveEstimate(values: EstimateFormValues): Promise<Estimate
   }
 
   // Create new estimate
-  const estimate_number = await getNextEstimateNumber(db, businessId)
+  const estimate_number = await getNextEstimateNumber(supabase, businessId)
 
-  const estimateRow: Record<string, unknown> = {
-    business_id: businessId,
-    client_id,
-    estimate_number,
-    status: "draft",
-    subtotal,
-    tax,
-    total,
-    valid_until: valid_until ?? null,
-    notes: notes ?? null,
-  }
-
-  let { data: est, error: estError } = await db
+  const { data: est, error: estError } = await supabase
     .from("estimates")
-    .insert(estimateRow)
+    .insert({
+      business_id: businessId,
+      client_id,
+      estimate_number,
+      status: "draft" as const,
+      subtotal,
+      tax,
+      total,
+      valid_until: valid_until ?? null,
+      notes: notes ?? null,
+    })
     .select("id")
     .single()
 
-  // Fallback: notes column may not exist if migration 005 hasn't been applied yet
-  if (estError?.message?.includes("notes")) {
-    const { notes: _n, ...rowWithoutNotes } = estimateRow
-    void _n
-    ;({ data: est, error: estError } = await db
-      .from("estimates")
-      .insert(rowWithoutNotes)
-      .select("id")
-      .single())
-  }
-
-  if (estError) return { success: false, message: estError.message }
+  if (estError || !est) return { success: false, message: estError?.message ?? "Failed to create estimate." }
 
   const itemRows = items.map((item) => ({
     business_id: businessId,
@@ -134,7 +119,7 @@ export async function saveEstimate(values: EstimateFormValues): Promise<Estimate
     duration_min: item.duration_min ?? null,
   }))
 
-  const { error: itemsError } = await db.from("estimate_items").insert(itemRows)
+  const { error: itemsError } = await supabase.from("estimate_items").insert(itemRows)
   if (itemsError) return { success: false, message: itemsError.message }
 
   revalidatePath("/estimates")
@@ -151,9 +136,7 @@ export async function updateEstimateStatus(
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
-  const { error } = await db
+  const { error } = await supabase
     .from("estimates")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", estimateId)
@@ -173,9 +156,7 @@ export async function deleteEstimate(estimateId: string): Promise<EstimateAction
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
-  const { error } = await db
+  const { error } = await supabase
     .from("estimates")
     .delete()
     .eq("id", estimateId)
@@ -194,10 +175,8 @@ export async function sendEstimate(estimateId: string): Promise<EstimateActionSt
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
 
-  const { data: estimate, error: estError } = await db
+  const { data: estimate, error: estError } = await supabase
     .from("estimates")
     .select("*, client:clients(*), items:estimate_items(*)")
     .eq("id", estimateId)
@@ -207,18 +186,18 @@ export async function sendEstimate(estimateId: string): Promise<EstimateActionSt
   if (estError || !estimate) return { success: false, message: "Estimate not found." }
 
   const { sendEstimateEmail } = await import("@/lib/email/send-estimate")
-  const emailResult = await sendEstimateEmail(estimate)
+  const emailResult = await sendEstimateEmail(estimate as unknown as Estimate)
   if (!emailResult.success) return { success: false, message: emailResult.message }
 
   // Update status to sent + log communication
-  await db
+  await supabase
     .from("estimates")
     .update({ status: "sent", updated_at: new Date().toISOString() })
     .eq("id", estimateId)
     .eq("business_id", businessId)
 
   if (estimate.client_id) {
-    await db.from("communications").insert({
+    await supabase.from("communications").insert({
       business_id: businessId,
       client_id: estimate.client_id,
       channel: "email",
@@ -258,12 +237,10 @@ export async function convertEstimateToServicePlan(
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
   const { estimate_id, property_id, frequency_type, interval, day_of_week, start_date, end_date } = parsed.data
 
   // Fetch estimate + items
-  const { data: estimate, error: estError } = await db
+  const { data: estimate, error: estError } = await supabase
     .from("estimates")
     .select("*, items:estimate_items(*)")
     .eq("id", estimate_id)
@@ -275,14 +252,14 @@ export async function convertEstimateToServicePlan(
 
   // Create one property_service + recurrence_rule per line item that has a service_type_id
   const items = (estimate.items ?? []) as Array<{ service_type_id: string | null; unit_price: number; duration_min: number | null; description: string }>
-  const serviceableItems = items.filter((i) => i.service_type_id)
+  const serviceableItems = items.filter((i): i is typeof i & { service_type_id: string } => !!i.service_type_id)
 
   if (serviceableItems.length === 0) {
     return { success: false, message: "No line items have a linked service type. Assign service types to items before converting." }
   }
 
   for (const item of serviceableItems) {
-    const { data: ps, error: psError } = await db
+    const { data: ps, error: psError } = await supabase
       .from("property_services")
       .insert({
         business_id: businessId,
@@ -292,14 +269,13 @@ export async function convertEstimateToServicePlan(
         duration_min: item.duration_min ?? null,
         instructions: null,
         is_active: true,
-        client_id: estimate.client_id,
       })
       .select("id")
       .single()
 
     if (psError) return { success: false, message: psError.message }
 
-    const { error: rrError } = await db.from("recurrence_rules").insert({
+    const { error: rrError } = await supabase.from("recurrence_rules").insert({
       business_id: businessId,
       property_service_id: ps.id,
       frequency_type,
@@ -314,7 +290,7 @@ export async function convertEstimateToServicePlan(
   }
 
   // Mark estimate as approved (already should be, but confirm)
-  await db
+  await supabase
     .from("estimates")
     .update({ status: "approved", updated_at: new Date().toISOString() })
     .eq("id", estimate_id)

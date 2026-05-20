@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
+import { type InvoiceStatus } from "@/types"
 
 export type PaymentActionState =
   | { success: true; message: string }
@@ -34,12 +35,10 @@ export async function recordPayment(values: RecordPaymentValues): Promise<Paymen
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
   const { invoice_id, amount, method, payment_date, reference, notes } = parsed.data
 
   // Fetch invoice to validate it belongs to this business and get total
-  const { data: invoice, error: invoiceError } = await db
+  const { data: invoice, error: invoiceError } = await supabase
     .from("invoices")
     .select("id, total, status")
     .eq("id", invoice_id)
@@ -55,7 +54,7 @@ export async function recordPayment(values: RecordPaymentValues): Promise<Paymen
   }
 
   // Insert payment
-  const { error: paymentError } = await db.from("payments").insert({
+  const { error: paymentError } = await supabase.from("payments").insert({
     business_id: businessId,
     invoice_id,
     amount,
@@ -68,7 +67,7 @@ export async function recordPayment(values: RecordPaymentValues): Promise<Paymen
   if (paymentError) return { success: false, message: paymentError.message }
 
   // Recalculate total paid and update invoice status
-  const { data: allPayments, error: sumError } = await db
+  const { data: allPayments, error: sumError } = await supabase
     .from("payments")
     .select("amount")
     .eq("invoice_id", invoice_id)
@@ -80,7 +79,7 @@ export async function recordPayment(values: RecordPaymentValues): Promise<Paymen
       0,
     )
     const invoiceTotal = Number(invoice.total) || 0
-    let newStatus: string
+    let newStatus: InvoiceStatus
 
     if (totalPaid >= invoiceTotal) {
       newStatus = "paid"
@@ -91,7 +90,7 @@ export async function recordPayment(values: RecordPaymentValues): Promise<Paymen
     }
 
     if (newStatus !== invoice.status) {
-      await db
+      await supabase
         .from("invoices")
         .update({ status: newStatus })
         .eq("id", invoice_id)
@@ -112,11 +111,9 @@ export async function deletePayment(paymentId: string): Promise<PaymentActionSta
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
 
   // Fetch payment for validation and invoice re-calculation
-  const { data: payment, error: fetchError } = await db
+  const { data: payment, error: fetchError } = await supabase
     .from("payments")
     .select("id, invoice_id, amount")
     .eq("id", paymentId)
@@ -125,7 +122,7 @@ export async function deletePayment(paymentId: string): Promise<PaymentActionSta
 
   if (fetchError || !payment) return { success: false, message: "Payment not found." }
 
-  const { error } = await db
+  const { error } = await supabase
     .from("payments")
     .delete()
     .eq("id", paymentId)
@@ -134,13 +131,13 @@ export async function deletePayment(paymentId: string): Promise<PaymentActionSta
   if (error) return { success: false, message: error.message }
 
   // Recalculate invoice status after deletion
-  const { data: remaining } = await db
+  const { data: remaining } = await supabase
     .from("payments")
     .select("amount")
     .eq("invoice_id", payment.invoice_id)
     .eq("business_id", businessId)
 
-  const { data: invoice } = await db
+  const { data: invoice } = await supabase
     .from("invoices")
     .select("total, status")
     .eq("id", payment.invoice_id)
@@ -152,7 +149,7 @@ export async function deletePayment(paymentId: string): Promise<PaymentActionSta
       0,
     )
     const invoiceTotal = Number(invoice.total) || 0
-    let newStatus: string
+    let newStatus: InvoiceStatus
 
     if (totalPaid >= invoiceTotal && totalPaid > 0) {
       newStatus = "paid"
@@ -165,7 +162,7 @@ export async function deletePayment(paymentId: string): Promise<PaymentActionSta
     }
 
     if (newStatus !== invoice.status) {
-      await db
+      await supabase
         .from("invoices")
         .update({ status: newStatus })
         .eq("id", payment.invoice_id)
