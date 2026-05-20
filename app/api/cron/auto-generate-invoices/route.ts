@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { todayUtc } from "@/lib/dates"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { getNextInvoiceNumber } from "@/lib/billing/invoice-numbers"
-import { buildInvoiceItemsFromCompletedJobs, sumInvoiceItems, type CompletedJobForInvoice } from "@/lib/billing/auto-invoice"
+import { buildInvoiceItemsFromCompletedJobs, getUninvoicedCompletedJobs, groupJobsByClient, sumInvoiceItems, type CompletedJobForInvoice } from "@/lib/billing/auto-invoice"
 
 export async function POST(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET
@@ -39,13 +39,8 @@ export async function POST(request: NextRequest) {
 
       if (jobsError) throw new Error(jobsError.message)
 
-      const uninvoiced = (completedJobs ?? []).filter((job: { id: string }) => !alreadyInvoicedIds.has(job.id))
-      const grouped = new Map<string, typeof uninvoiced>()
-      for (const job of uninvoiced) {
-        const arr = grouped.get(job.client_id) ?? []
-        arr.push(job)
-        grouped.set(job.client_id, arr)
-      }
+      const uninvoiced = getUninvoicedCompletedJobs(completedJobs ?? [], alreadyInvoicedIds)
+      const grouped = groupJobsByClient(uninvoiced)
 
       let createdInvoices = 0
       let jobsInvoiced = 0
