@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { normalizeJobRows } from "@/lib/jobs"
 import { ClientStatusBadge } from "@/components/clients/client-status-badge"
 import { ClientDetailTabs } from "@/components/clients/client-detail-tabs"
+import { ClientAutopayCard } from "@/components/clients/client-autopay-card"
 import { createClient } from "@/lib/supabase/server"
 import type { Client, Property, Job, ServiceType, PropertyService, Communication } from "@/types"
 
@@ -45,7 +46,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
 
   const propertyIds = ((properties ?? []) as Property[]).map((p) => p.id)
 
-  const [jobsResult, serviceTypesResult, propertyServicesResult, commsResult] = await Promise.all([
+  const [jobsResult, serviceTypesResult, propertyServicesResult, commsResult, billingSettingsResult, invoicesResult] = await Promise.all([
     db
       .from("jobs")
       .select("*, property:properties(*), property_service:property_services(*, service_type:service_types(*))")
@@ -63,12 +64,44 @@ export default async function ClientDetailPage({ params }: PageProps) {
       .select("*")
       .eq("client_id", id)
       .order("sent_at", { ascending: false }),
+    db
+      .from("client_billing_settings")
+      .select("autopay_enabled, stripe_default_payment_method_brand, stripe_default_payment_method_last4")
+      .eq("client_id", id)
+      .maybeSingle(),
+    db
+      .from("invoices")
+      .select("id, status, total, payments:payments(amount, payment_date)")
+      .eq("client_id", id),
   ])
 
   const jobs = normalizeJobRows((jobsResult.data ?? []) as Record<string, unknown>[]) as Job[]
   const serviceTypes = (serviceTypesResult.data ?? []) as ServiceType[]
   const propertyServices = (propertyServicesResult.data ?? []) as PropertyService[]
   const communications = (commsResult.data ?? []) as Communication[]
+  const invoices = (invoicesResult.data ?? []) as Array<{
+    status: string
+    total: number
+    payments?: Array<{ amount: number; payment_date: string }>
+  }>
+  const revenueEarned = jobs
+    .filter((j) => j.status === "completed")
+    .reduce((sum, j) => sum + Number(j.price), 0)
+  const revenueCollected = invoices.reduce(
+    (sum, inv) => sum + (inv.payments ?? []).reduce((acc, p) => acc + Number(p.amount), 0),
+    0,
+  )
+  const outstandingBalance = invoices
+    .filter((inv) => ["sent", "partial", "overdue"].includes(inv.status))
+    .reduce((sum, inv) => sum + Number(inv.total), 0)
+  const allPayments = invoices.flatMap((inv) => inv.payments ?? [])
+  const lastPaymentDate =
+    allPayments.length > 0
+      ? allPayments.sort((a, b) => b.payment_date.localeCompare(a.payment_date))[0]?.payment_date ?? null
+      : null
+  const billingSettings = (billingSettingsResult.data ?? null) as
+    | { autopay_enabled: boolean; stripe_default_payment_method_brand: string | null; stripe_default_payment_method_last4: string | null }
+    | null
 
   return (
     <div className="space-y-6">
@@ -157,6 +190,19 @@ export default async function ClientDetailPage({ params }: PageProps) {
         serviceTypes={serviceTypes}
         propertyServices={propertyServices}
         communications={communications}
+        revenueSummary={{
+          earned: revenueEarned,
+          collected: revenueCollected,
+          outstanding: outstandingBalance,
+          paymentCount: allPayments.length,
+          lastPaymentDate,
+        }}
+      />
+      <ClientAutopayCard
+        clientId={id}
+        autopayEnabled={billingSettings?.autopay_enabled ?? false}
+        paymentMethodBrand={billingSettings?.stripe_default_payment_method_brand ?? null}
+        paymentMethodLast4={billingSettings?.stripe_default_payment_method_last4 ?? null}
       />
     </div>
   )

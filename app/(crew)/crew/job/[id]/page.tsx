@@ -37,13 +37,15 @@ function formatElapsed(seconds: number): string {
 
 // ─── Timer (client-only) ──────────────────────────────────────────────────────
 
-function useElapsedTimer(startMs: number) {
-  const [elapsed, setElapsed] = useState(() => Math.floor((Date.now() - startMs) / 1000))
+function useElapsedTimer(startMs: number | null) {
+  const [elapsed, setElapsed] = useState(0)
 
   useEffect(() => {
+    if (startMs === null) return
+    setElapsed(Math.floor((Date.now() - startMs) / 1000))
     const id = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startMs) / 1000))
-    }, 10_000) // update every 10s is enough
+    }, 10_000)
     return () => clearInterval(id)
   }, [startMs])
 
@@ -78,9 +80,30 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [skipReason, setSkipReason]         = useState(SKIP_REASONS[0])
   const [reloadKey, setReloadKey]           = useState(0)
 
-  // Start time — record once on mount
-  const [startMs] = useState(() => Date.now())
+  // Start time — persisted in localStorage so navigation doesn't reset the timer
+  const [startMs, setStartMs] = useState<number | null>(null)
   const elapsedSec = useElapsedTimer(startMs)
+
+  useEffect(() => {
+    const key = `job-start-${jobId}`
+    const stored = localStorage.getItem(key)
+    if (stored) {
+      setStartMs(parseInt(stored, 10))
+    } else {
+      const now = Date.now()
+      localStorage.setItem(key, String(now))
+      setStartMs(now)
+    }
+  }, [jobId])
+
+  useEffect(() => {
+    if (!showSkipSheet) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [showSkipSheet])
 
   // ── Data load ──────────────────────────────────────────────────────────────
 
@@ -101,8 +124,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         db.from("jobs")
           .select(`
             id, status, estimated_duration_min, photo_required, business_id,
+            title, description,
             client:clients(id, name, phone),
-            property:properties(id, address, access_notes, gate_code, pet_notes, lawn_size),
+            property:properties(
+              id, address, access_notes, gate_code, pet_notes, lawn_size,
+              property_services(id, instructions, service_type:service_types(id, name))
+            ),
             property_service:property_services(
               id, instructions,
               service_type:service_types(id, name, default_duration_min)
@@ -163,6 +190,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     const db = supabase as any
     const now = new Date().toISOString()
     const elapsedMin = Math.max(1, Math.round(elapsedSec / 60))
+    localStorage.removeItem(`job-start-${jobId}`)
 
     try {
       // Update job status
@@ -182,7 +210,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       }
 
       // Insert time log
-      const startIso = new Date(startMs).toISOString()
+      const startIso = new Date(startMs ?? Date.now()).toISOString()
       const { error: e3 } = await db.from("time_logs").insert({
         job_id:      job.id,
         user_id:     currentUser.id,
@@ -229,6 +257,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = supabase as any
     const now = new Date().toISOString()
+    localStorage.removeItem(`job-start-${jobId}`)
 
     try {
       const { error: s1 } = await db.from("jobs").update({ status: "skipped" }).eq("id", job.id)
@@ -266,13 +295,24 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function buildChecklist(job: any): string[] {
-    const instructions: string = job?.property_service?.instructions ?? ""
+    // Priority: job description → property service instructions → property-level service instructions
+    const instructions: string =
+      job?.description ??
+      job?.property_service?.instructions ??
+      job?.property?.property_services?.[0]?.instructions ??
+      ""
     if (!instructions) {
-      // Fallback generic checklist
-      const svcName: string = job?.property_service?.service_type?.name ?? ""
+      const svcName: string =
+        job?.property_service?.service_type?.name ??
+        job?.property?.property_services?.[0]?.service_type?.name ??
+        ""
       if (svcName.toLowerCase().includes("mow"))
         return ["Mow all lawn areas", "Edge along paths and borders", "Blow clippings off hard surfaces", "Check for debris or obstacles"]
-      return ["Complete assigned service", "Check area for issues", "Clean up before leaving"]
+      return [
+        svcName ? `Complete ${svcName}` : "Complete assigned service",
+        "Check area for issues",
+        "Clean up before leaving",
+      ]
     }
     return instructions
       .split("\n")
@@ -304,7 +344,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   const property       = job.property
   const client         = job.client
+  // Primary: the specific service this job was created for
   const svc            = job.property_service?.service_type
+  // Fallback: all services configured for this property (shown when job has no linked service)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const propertySvcs: any[] = svc ? [] : (property?.property_services ?? [])
   const hasAccessInfo  = property?.access_notes || property?.gate_code || property?.pet_notes
   const checklistItems = buildChecklist(job)
   const alreadyDone    = job.status === "completed" || job.status === "skipped"
@@ -319,10 +363,33 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         <div className="border-b border-border bg-background px-4 py-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">{svc?.name ?? "Service"}</p>
-              <h1 className="mt-0.5 text-lg font-semibold text-foreground leading-tight">
+              <h1 className="text-lg font-semibold text-foreground leading-tight">
                 {client?.name ?? "Client"}
               </h1>
+              {job.title && (
+                <p className="mt-0.5 text-sm font-medium text-foreground">{job.title}</p>
+              )}
+              <div className="mt-1 flex flex-wrap gap-1">
+                {svc?.name ? (
+                  <Badge variant="secondary" className="text-xs font-medium">
+                    {svc.name}
+                  </Badge>
+                ) : job.title ? (
+                  <Badge variant="secondary" className="text-xs font-medium">
+                    One-Off Job
+                  </Badge>
+                ) : propertySvcs.length > 0 ? (
+                  propertySvcs.map((ps: any) =>
+                    ps.service_type?.name ? (
+                      <Badge key={ps.id} variant="secondary" className="text-xs font-medium">
+                        {ps.service_type.name}
+                      </Badge>
+                    ) : null
+                  )
+                ) : (
+                  <span className="text-xs text-muted-foreground">No service assigned</span>
+                )}
+              </div>
               <p className="mt-0.5 text-sm text-muted-foreground">{property?.address ?? "No address"}</p>
               {property?.lawn_size && (
                 <p className="mt-0.5 text-xs text-muted-foreground">Lawn size: {property.lawn_size}</p>
@@ -494,46 +561,54 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
       {/* ── Skip sheet (modal overlay) ── */}
       {showSkipSheet && (
-        <div className="fixed inset-0 z-30 flex items-end">
+        <div className="fixed inset-x-0 top-0 bottom-20 z-[60]">
           <div
             className="absolute inset-0 bg-black/50"
             onClick={() => setShowSkipSheet(false)}
           />
-          <div className="relative z-10 w-full rounded-t-2xl bg-background px-4 pb-8 pt-6">
-            <h2 className="mb-4 text-base font-semibold text-foreground">Skip this job?</h2>
-            <p className="mb-4 text-sm text-muted-foreground">Select a reason:</p>
-            <div className="flex flex-col gap-2 mb-6">
-              {SKIP_REASONS.map((reason) => (
-                <button
-                  key={reason}
-                  onClick={() => setSkipReason(reason)}
-                  className={`flex h-11 items-center rounded-lg border px-4 text-sm font-medium transition-colors ${
-                    skipReason === reason
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {reason}
-                </button>
-              ))}
+          <div className="relative z-10 flex h-full w-full flex-col bg-background">
+            <div className="border-b border-border px-4 py-4">
+              <h2 className="text-base font-semibold text-foreground">Skip this job?</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Select a reason:</p>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="h-12 flex-1"
-                onClick={() => setShowSkipSheet(false)}
-                disabled={submitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                className="h-12 flex-1"
-                onClick={handleSkip}
-                disabled={submitting}
-              >
-                {submittingAction === "skip" ? "Skipping…" : "Skip Job"}
-              </Button>
+
+            <div className="flex-1 overflow-y-auto px-4 py-4">
+              <div className="flex flex-col gap-2">
+                {SKIP_REASONS.map((reason) => (
+                  <button
+                    key={reason}
+                    onClick={() => setSkipReason(reason)}
+                    className={`flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+                      skipReason === reason
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-border bg-background px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="h-12 flex-1"
+                  onClick={() => setShowSkipSheet(false)}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="h-12 flex-1"
+                  onClick={handleSkip}
+                  disabled={submitting}
+                >
+                  {submittingAction === "skip" ? "Skipping…" : "Skip Job"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

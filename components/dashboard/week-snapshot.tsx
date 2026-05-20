@@ -25,7 +25,7 @@ export function WeekSnapshot({ days }: WeekSnapshotProps) {
                 {day.label} {dayOfMonth}
               </span>
 
-              <div className="relative h-24 w-full overflow-hidden rounded-md bg-muted">
+              <div className="relative h-32 w-full overflow-hidden rounded-md bg-muted">
                 <div
                   className={cn(
                     "absolute bottom-0 left-0 right-0 rounded-md transition-all",

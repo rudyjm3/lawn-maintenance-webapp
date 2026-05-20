@@ -145,6 +145,72 @@ export type Database = {
           },
         ]
       }
+      client_billing_settings: {
+        Row: {
+          autopay_enabled: boolean
+          autopay_mode: Database["public"]["Enums"]["autopay_mode"]
+          business_id: string
+          client_id: string
+          created_at: string
+          id: string
+          next_billing_run_at: string | null
+          reminder_days_after: number[]
+          reminder_days_before: number[]
+          stripe_customer_id: string | null
+          stripe_default_payment_method_brand: string | null
+          stripe_default_payment_method_id: string | null
+          stripe_default_payment_method_last4: string | null
+          updated_at: string
+        }
+        Insert: {
+          autopay_enabled?: boolean
+          autopay_mode?: Database["public"]["Enums"]["autopay_mode"]
+          business_id: string
+          client_id: string
+          created_at?: string
+          id?: string
+          next_billing_run_at?: string | null
+          reminder_days_after?: number[]
+          reminder_days_before?: number[]
+          stripe_customer_id?: string | null
+          stripe_default_payment_method_brand?: string | null
+          stripe_default_payment_method_id?: string | null
+          stripe_default_payment_method_last4?: string | null
+          updated_at?: string
+        }
+        Update: {
+          autopay_enabled?: boolean
+          autopay_mode?: Database["public"]["Enums"]["autopay_mode"]
+          business_id?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          next_billing_run_at?: string | null
+          reminder_days_after?: number[]
+          reminder_days_before?: number[]
+          stripe_customer_id?: string | null
+          stripe_default_payment_method_brand?: string | null
+          stripe_default_payment_method_id?: string | null
+          stripe_default_payment_method_last4?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_billing_settings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_billing_settings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       communications: {
         Row: {
           channel: Database["public"]["Enums"]["comm_channel"]
@@ -475,6 +541,10 @@ export type Database = {
       }
       invoices: {
         Row: {
+          auto_generated: boolean
+          auto_generation_batch_date: string | null
+          autopay_attempted_at: string | null
+          autopay_status: Database["public"]["Enums"]["autopay_status"]
           client_id: string
           created_at: string
           due_date: string | null
@@ -488,6 +558,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_generated?: boolean
+          auto_generation_batch_date?: string | null
+          autopay_attempted_at?: string | null
+          autopay_status?: Database["public"]["Enums"]["autopay_status"]
           client_id: string
           created_at?: string
           due_date?: string | null
@@ -501,6 +575,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_generated?: boolean
+          auto_generation_batch_date?: string | null
+          autopay_attempted_at?: string | null
+          autopay_status?: Database["public"]["Enums"]["autopay_status"]
           client_id?: string
           created_at?: string
           due_date?: string | null
@@ -526,6 +604,45 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_reminders: {
+        Row: {
+          business_id: string
+          id: string
+          invoice_id: string
+          reminder_type: Database["public"]["Enums"]["invoice_reminder_type"]
+          sent_at: string
+        }
+        Insert: {
+          business_id: string
+          id?: string
+          invoice_id: string
+          reminder_type: Database["public"]["Enums"]["invoice_reminder_type"]
+          sent_at?: string
+        }
+        Update: {
+          business_id?: string
+          id?: string
+          invoice_id?: string
+          reminder_type?: Database["public"]["Enums"]["invoice_reminder_type"]
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_reminders_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_reminders_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -1407,11 +1524,19 @@ export type Database = {
       auth_business_id: { Args: never; Returns: string }
     }
     Enums: {
+      autopay_mode: "invoice_due_date"
+      autopay_status: "idle" | "succeeded" | "failed"
       client_status: "lead" | "active" | "inactive" | "archived"
       comm_channel: "email" | "sms" | "app"
       estimate_status: "draft" | "sent" | "approved" | "rejected" | "expired"
       exception_type: "skip" | "reschedule" | "cancel"
       frequency_type: "weekly" | "biweekly" | "monthly" | "custom"
+      invoice_reminder_type:
+        | "due_minus_3"
+        | "due_day"
+        | "overdue_plus_3"
+        | "overdue_plus_7"
+        | "overdue_notice"
       invoice_status: "draft" | "sent" | "partial" | "paid" | "overdue" | "void"
       job_status:
         | "unscheduled"
@@ -1563,11 +1688,20 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      autopay_mode: ["invoice_due_date"],
+      autopay_status: ["idle", "succeeded", "failed"],
       client_status: ["lead", "active", "inactive", "archived"],
       comm_channel: ["email", "sms", "app"],
       estimate_status: ["draft", "sent", "approved", "rejected", "expired"],
       exception_type: ["skip", "reschedule", "cancel"],
       frequency_type: ["weekly", "biweekly", "monthly", "custom"],
+      invoice_reminder_type: [
+        "due_minus_3",
+        "due_day",
+        "overdue_plus_3",
+        "overdue_plus_7",
+        "overdue_notice",
+      ],
       invoice_status: ["draft", "sent", "partial", "paid", "overdue", "void"],
       job_status: [
         "unscheduled",

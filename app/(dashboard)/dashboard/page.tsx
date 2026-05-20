@@ -1,9 +1,12 @@
 import Link from "next/link"
 import {
   AlertTriangle,
+  ArrowRight,
   Building2,
   CalendarX2,
   ClipboardList,
+  CreditCard,
+  DollarSign,
   Map,
   PackageCheck,
   Receipt,
@@ -58,17 +61,26 @@ export default async function DashboardPage() {
   const weekStart = startOfWeekUtc(new Date())
   const weekEnd = formatUtcDate(addUtcDays(weekStart, 6))
 
+  const now = new Date()
+  const mtdStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10)
+  const mtdEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).toISOString().slice(0, 10)
+
   const [
     clientsCountResult,
     propertiesCountResult,
     servicesCountResult,
     leadsCountResult,
     invoicesCountResult,
+    outstandingInvoicesResult,
+    mtdPaymentsResult,
     todayJobsResult,
     weekJobsResult,
     unscheduledJobsResult,
     todayRoutesResult,
     recentClientsResult,
+    autopayCountResult,
+    autoInvoicesCountResult,
+    remindersCountResult,
   ] = await Promise.all([
     db.from("clients").select("id", { count: "exact", head: true }),
     db.from("properties").select("id", { count: "exact", head: true }),
@@ -81,6 +93,16 @@ export default async function DashboardPage() {
       .from("invoices")
       .select("id", { count: "exact", head: true })
       .eq("status", "overdue"),
+    db
+      .from("invoices")
+      .select("total")
+      .not("status", "in", '("void","paid")')
+      .lte("created_at", mtdEnd),
+    db
+      .from("payments")
+      .select("amount")
+      .gte("payment_date", mtdStart)
+      .lte("payment_date", mtdEnd),
     db
       .from("jobs")
       .select("*, client:clients(name), property:properties(address)")
@@ -117,6 +139,21 @@ export default async function DashboardPage() {
       .select("id, name, created_at")
       .order("created_at", { ascending: false })
       .limit(6),
+    db
+      .from("payments")
+      .select("id", { count: "exact", head: true })
+      .eq("method", "stripe_autopay")
+      .eq("payment_date", today),
+    db
+      .from("invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("auto_generated", true)
+      .eq("auto_generation_batch_date", today),
+    db
+      .from("invoice_reminders")
+      .select("id", { count: "exact", head: true })
+      .gte("sent_at", `${today}T00:00:00.000Z`)
+      .lt("sent_at", `${today}T23:59:59.999Z`),
   ])
 
   const clientsCount = clientsCountResult.count ?? 0
@@ -124,6 +161,10 @@ export default async function DashboardPage() {
   const servicesCount = servicesCountResult.count ?? 0
   const openLeadsCount = leadsCountResult.count ?? 0
   const overdueCount = invoicesCountResult.count ?? 0
+  const outstandingBalance = ((outstandingInvoicesResult.data ?? []) as { total: number }[])
+    .reduce((sum, inv) => sum + (Number(inv.total) || 0), 0)
+  const mtdCollected = ((mtdPaymentsResult.data ?? []) as { amount: number }[])
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
   const todayJobs = (todayJobsResult.data ?? []) as JobRow[]
   const weekJobs = (weekJobsResult.data ?? []) as JobRow[]
   const unassignedCount = unscheduledJobsResult.count ?? 0
@@ -132,6 +173,9 @@ export default async function DashboardPage() {
     stops: [...(r.stops ?? [])].sort((a, b) => a.stop_order - b.stop_order),
   }))
   const recentClients = (recentClientsResult.data ?? []) as RecentClient[]
+  const autopayCount = autopayCountResult.count ?? 0
+  const autoInvoicesCount = autoInvoicesCountResult.count ?? 0
+  const remindersCount = remindersCountResult.count ?? 0
 
   const week = buildWeekSnapshot(weekJobs, weekStart, CAPACITY_MINUTES)
   const activity = buildActivity(recentClients)
@@ -159,6 +203,27 @@ export default async function DashboardPage() {
           icon={Users}
         />
         <KpiCard
+          title="Today's Jobs"
+          value={todayJobs.length}
+          sub={`${todaysCompleted} completed`}
+          icon={ClipboardList}
+        />
+        <KpiCard
+          title="Outstanding"
+          value={outstandingBalance.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
+          sub="Unpaid invoices"
+          icon={Receipt}
+        />
+        <KpiCard
+          title="Collected MTD"
+          value={mtdCollected.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}
+          sub="This month"
+          icon={CreditCard}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiCard
           title="Properties"
           value={propertiesCount}
           sub="Service locations"
@@ -171,10 +236,16 @@ export default async function DashboardPage() {
           icon={PackageCheck}
         />
         <KpiCard
-          title="Today's Jobs"
-          value={todayJobs.length}
-          sub={`${todaysCompleted} completed`}
-          icon={ClipboardList}
+          title="Open Leads"
+          value={openLeadsCount}
+          sub="Active pipeline"
+          icon={Users}
+        />
+        <KpiCard
+          title="Overdue Invoices"
+          value={overdueCount}
+          sub="Past due date"
+          icon={DollarSign}
         />
       </div>
 
@@ -217,11 +288,24 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3 space-y-4">
-          {todayRoutes.length === 0 ? (
-            <RoutePreview route={null} />
-          ) : (
-            todayRoutes.map((r) => <RoutePreview key={r.id} route={r} />)
-          )}
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="max-h-[400px] overflow-y-auto p-4 space-y-4">
+              {todayRoutes.length === 0 ? (
+                <RoutePreview route={null} />
+              ) : (
+                todayRoutes.map((r) => <RoutePreview key={r.id} route={r} />)
+              )}
+            </div>
+            <div className="border-t border-border bg-card px-4 py-3">
+              <Link
+                href="/routes"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                View All Routes
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
         </div>
         <div className="lg:col-span-2">
           <WeekSnapshot days={week} />
@@ -232,8 +316,43 @@ export default async function DashboardPage() {
         <div className="lg:col-span-3">
           <ActivityFeed items={activity} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
+          <BillingAutomationCard
+            autopayCount={autopayCount}
+            autoInvoicesCount={autoInvoicesCount}
+            remindersCount={remindersCount}
+          />
           <QuickActions />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BillingAutomationCard({
+  autopayCount,
+  autoInvoicesCount,
+  remindersCount,
+}: {
+  autopayCount: number
+  autoInvoicesCount: number
+  remindersCount: number
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h3 className="mb-4 text-sm font-semibold text-foreground">Billing Automation (Today)</h3>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <p className="text-[11px] text-muted-foreground">Autopay</p>
+          <p className="mt-1 text-lg font-semibold text-foreground">{autopayCount}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <p className="text-[11px] text-muted-foreground">Auto-Invoices</p>
+          <p className="mt-1 text-lg font-semibold text-foreground">{autoInvoicesCount}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-muted/30 p-3">
+          <p className="text-[11px] text-muted-foreground">Reminders</p>
+          <p className="mt-1 text-lg font-semibold text-foreground">{remindersCount}</p>
         </div>
       </div>
     </div>

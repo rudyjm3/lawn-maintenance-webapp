@@ -112,10 +112,11 @@ export async function completeOnboarding(
     return { success: false, message: `Failed to create user profile: ${userError.message}` }
   }
 
-  // 3. Store business_id in auth user metadata so the JWT carries it for RLS
+  // 3. Store business_id + role in auth user metadata so the JWT carries it for RLS and middleware
   await supabase.auth.updateUser({
     data: {
       business_id: tenantId,
+      role: "owner",
       business_name: parsed.data.businessName,
       phone: parsed.data.phone,
       timezone: parsed.data.timezone,

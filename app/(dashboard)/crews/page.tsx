@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { CrewsTable } from "@/components/crews/crews-table"
+import { InviteMemberDialog } from "@/components/crews/invite-member-dialog"
 import type { Crew, User } from "@/types"
 
 export const metadata = { title: "Crews & Team" }
@@ -46,11 +47,14 @@ export default async function CrewsPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">Crews & Team</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your field crews and assign team members.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Crews & Team</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage your field crews and assign team members.
+          </p>
+        </div>
+        <InviteMemberDialog />
       </div>
 
       <CrewsTable crews={crews} allUsers={allUsers} />

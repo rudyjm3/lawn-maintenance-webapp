@@ -69,8 +69,12 @@ export async function login(_prev: ActionState | null, formData: FormData): Prom
     return { success: false, message: error.message, fields: { email: raw.email } }
   }
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const role = user?.user_metadata?.role as string | undefined
+  const isCrewRole = role === "crew_member" || role === "crew_lead"
+
   revalidatePath("/", "layout")
-  redirect("/dashboard")
+  redirect(isCrewRole ? "/crew/today" : "/dashboard")
 }
 
 export async function signup(_prev: ActionState | null, formData: FormData): Promise<ActionState> {
@@ -172,6 +176,39 @@ export async function resetPassword(_prev: ActionState | null, formData: FormDat
 
   revalidatePath("/", "layout")
   redirect("/dashboard")
+}
+
+export async function setInitialPassword(
+  _prev: ActionState | null,
+  formData: FormData,
+): Promise<ActionState> {
+  const raw = {
+    password: formData.get("password") as string,
+    confirmPassword: formData.get("confirmPassword") as string,
+  }
+
+  const parsed = ResetPasswordSchema.safeParse(raw)
+  if (!parsed.success) {
+    return {
+      success: false,
+      message: "Please fix the errors below.",
+      errors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+    }
+  }
+
+  if (parsed.data.password !== parsed.data.confirmPassword) {
+    return { success: false, message: "Passwords do not match." }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.auth.updateUser({ password: parsed.data.password })
+
+  if (error) {
+    return { success: false, message: error.message }
+  }
+
+  revalidatePath("/", "layout")
+  redirect("/crew/today")
 }
 
 export async function signOut(): Promise<void> {
