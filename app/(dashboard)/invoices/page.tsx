@@ -22,7 +22,7 @@ export default async function InvoicesPage() {
       db
         .from("clients")
         .select("id, name, email, phone, billing_address, status, source, notes, created_at")
-        .eq("status", "active")
+        .in("status", ["active", "lead"])
         .order("name"),
       db
         .from("jobs")

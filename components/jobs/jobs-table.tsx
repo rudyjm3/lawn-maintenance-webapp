@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { CalendarDays, ClipboardPlus, Search } from "lucide-react"
+import { CalendarDays, ClipboardPlus, Pencil, Search } from "lucide-react"
 import { AddJobSheet } from "@/components/jobs/add-job-sheet"
 import { JobStatusBadge } from "@/components/jobs/job-status-badge"
 import { Button } from "@/components/ui/button"
@@ -58,9 +58,16 @@ export function JobsTable({
   const [dateTo, setDateTo] = useState("")
   const [sheetOpen, setSheetOpen] = useState(initialOpenNew)
   const [sheetInstance, setSheetInstance] = useState(0)
+  const [editingJob, setEditingJob] = useState<Job | undefined>(undefined)
 
   function openAddJobSheet() {
+    setEditingJob(undefined)
     setSheetInstance((value) => value + 1)
+    setSheetOpen(true)
+  }
+
+  function openEditJobSheet(job: Job) {
+    setEditingJob(job)
     setSheetOpen(true)
   }
 
@@ -223,11 +230,12 @@ export function JobsTable({
                 <TableHead className="px-4">Status</TableHead>
                 <TableHead className="px-4">Duration</TableHead>
                 <TableHead className="px-4">Price</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredJobs.map((job) => (
-                <TableRow key={job.id}>
+                <TableRow key={job.id} className="group">
                   <TableCell className="px-4 py-3 font-medium">{job.client?.name ?? "Unknown client"}</TableCell>
                   <TableCell className="px-4 py-3 text-muted-foreground">
                     {job.property?.address ?? "Unknown property"}
@@ -251,6 +259,15 @@ export function JobsTable({
                   <TableCell className="px-4 py-3 text-muted-foreground">
                     ${job.price.toFixed(2)}
                   </TableCell>
+                  <TableCell className="px-4 py-3">
+                    <button
+                      onClick={() => openEditJobSheet(job)}
+                      className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition-all"
+                      aria-label="Edit job"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -263,12 +280,13 @@ export function JobsTable({
       </p>
 
       <AddJobSheet
-        key={sheetInstance}
+        key={editingJob ? editingJob.id : sheetInstance}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         clients={clients}
         properties={properties}
         defaultClientId={clientFilter !== "all" ? clientFilter : initialClientId}
+        job={editingJob}
       />
     </>
   )

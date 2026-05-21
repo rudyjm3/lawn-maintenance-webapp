@@ -149,6 +149,8 @@ export interface Job {
   client_id: string
   property_id: string
   property_service_id: string | null
+  title: string | null
+  description: string | null
   service_date: string | null        // ISO date "YYYY-MM-DD"
   status: JobStatus
   estimated_duration_min: number

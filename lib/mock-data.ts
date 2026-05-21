@@ -105,6 +105,8 @@ function makeJob(
     client_id: client.id,
     property_id: property.id,
     property_service_id: null,
+    title: null,
+    description: null,
     service_date: daysOffset !== 99 ? isoDate(daysOffset) : null,
     status,
     estimated_duration_min: service_type.default_duration_min,

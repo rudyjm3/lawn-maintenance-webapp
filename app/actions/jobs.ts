@@ -27,6 +27,65 @@ const OneOffJobSchema = z.object({
   photo_required: z.boolean().default(false),
 })
 
+const UpdateJobSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().max(120).optional().or(z.literal("")),
+  description: z.string().max(2000).optional().or(z.literal("")),
+  service_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal("")),
+  estimated_duration_min: z.coerce.number().int().min(1, "Duration must be at least 1 minute"),
+  price: z.coerce.number().min(0, "Price must be 0 or more"),
+  photo_required: z.boolean().default(false),
+  status: z.enum(["unscheduled", "scheduled", "in_progress", "completed", "skipped", "cancelled"]),
+})
+
+export type UpdateJobFormValues = z.infer<typeof UpdateJobSchema>
+
+export async function updateJob(values: UpdateJobFormValues): Promise<JobActionState> {
+  const parsed = UpdateJobSchema.safeParse(values)
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Validation error" }
+  }
+
+  const supabase = await createSupabaseClient()
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { data: job, error: jobError } = await db
+    .from("jobs")
+    .select("id, client_id")
+    .eq("id", parsed.data.id)
+    .eq("business_id", businessId)
+    .maybeSingle()
+
+  if (jobError || !job) return { success: false, message: "Job not found." }
+
+  const { id, title, description, service_date, estimated_duration_min, price, photo_required, status } = parsed.data
+
+  const { error } = await db
+    .from("jobs")
+    .update({
+      title: title || null,
+      description: description || null,
+      service_date: service_date || null,
+      estimated_duration_min,
+      price,
+      photo_required,
+      status,
+    })
+    .eq("id", id)
+    .eq("business_id", businessId)
+
+  if (error) return { success: false, message: error.message }
+
+  revalidatePath("/jobs")
+  revalidatePath("/schedule")
+  revalidatePath("/dashboard")
+  revalidatePath(`/clients/${job.client_id}`)
+  return { success: true, message: "Job updated." }
+}
+
 const JobScheduleSchema = z.object({
   jobId: z.string().min(1),
   serviceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
