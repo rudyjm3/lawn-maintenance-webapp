@@ -1,0 +1,1 @@
+ALTER TABLE crews ADD COLUMN IF NOT EXISTS color text;
