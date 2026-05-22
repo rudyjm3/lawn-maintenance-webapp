@@ -32,10 +32,12 @@ import type { UserRole } from "@/types"
 
 export interface MemberWithCrews {
   id: string
+  auth_user_id: string
   first_name: string
   last_name: string
   role: UserRole
   is_active: boolean
+  email?: string
   crews: {
     id: string
     name: string
@@ -56,6 +58,7 @@ interface MemberFormValues {
   last_name: string
   role: UserRole
   is_active: boolean
+  email: string
 }
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
@@ -80,7 +83,7 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
     setValue,
     formState: { errors },
   } = useForm<MemberFormValues>({
-    defaultValues: { first_name: "", last_name: "", role: "crew_member", is_active: true },
+    defaultValues: { first_name: "", last_name: "", role: "crew_member", is_active: true, email: "" },
   })
 
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -95,6 +98,7 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
       last_name:  member.last_name,
       role:       member.role,
       is_active:  member.is_active,
+      email:      member.email ?? "",
     })
     setLocalCrews(member.crews)
   }, [open, member, reset])
@@ -117,11 +121,13 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
     setIsSubmitting(true)
 
     const result = await saveUser({
-      id:         member.id,
-      first_name: data.first_name,
-      last_name:  data.last_name,
-      role:       data.role,
-      is_active:  data.is_active,
+      id:           member.id,
+      auth_user_id: member.auth_user_id,
+      first_name:   data.first_name,
+      last_name:    data.last_name,
+      role:         data.role,
+      is_active:    data.is_active,
+      email:        data.email.trim() || undefined,
     })
 
     setIsSubmitting(false)
@@ -178,6 +184,26 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
             {errors.last_name && (
               <p className="text-xs text-destructive">{errors.last_name.message}</p>
             )}
+          </div>
+
+          {/* Email */}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="crew@example.com"
+              {...register("email", {
+                validate: (v) =>
+                  !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || "Enter a valid email address.",
+              })}
+            />
+            {errors.email && (
+              <p className="text-xs text-destructive">{errors.email.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Changing this updates their login email.
+            </p>
           </div>
 
           {/* Role */}

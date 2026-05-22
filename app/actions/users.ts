@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 
 export type UserActionState =
@@ -10,11 +11,13 @@ export type UserActionState =
   | { success: false; message: string }
 
 const SaveUserSchema = z.object({
-  id:         z.string(),
-  first_name: z.string().min(1, "First name is required"),
-  last_name:  z.string().min(1, "Last name is required"),
-  role:       z.enum(["owner", "manager", "crew_lead", "crew_member"]),
-  is_active:  z.boolean(),
+  id:           z.string(),
+  auth_user_id: z.string(),
+  first_name:   z.string().min(1, "First name is required"),
+  last_name:    z.string().min(1, "Last name is required"),
+  role:         z.enum(["owner", "manager", "crew_lead", "crew_member"]),
+  is_active:    z.boolean(),
+  email:        z.string().email("Enter a valid email address.").optional(),
 })
 
 export type SaveUserValues = z.infer<typeof SaveUserSchema>
@@ -31,7 +34,7 @@ export async function saveUser(values: SaveUserValues): Promise<UserActionState>
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
-  const { id, ...fields } = parsed.data
+  const { id, auth_user_id, email, ...fields } = parsed.data
 
   const { error } = await db
     .from("users")
@@ -45,6 +48,13 @@ export async function saveUser(values: SaveUserValues): Promise<UserActionState>
     .eq("business_id", businessId)
 
   if (error) return { success: false, message: error.message }
+
+  // Update email in auth.users if a new one was provided
+  if (email) {
+    const admin = createAdminClient()
+    const { error: authError } = await admin.auth.admin.updateUserById(auth_user_id, { email })
+    if (authError) return { success: false, message: `Profile saved but email update failed: ${authError.message}` }
+  }
 
   revalidatePath("/crews")
   return { success: true, message: "Member updated." }
