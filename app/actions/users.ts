@@ -11,13 +11,12 @@ export type UserActionState =
   | { success: false; message: string }
 
 const SaveUserSchema = z.object({
-  id:           z.string(),
-  auth_user_id: z.string(),
-  first_name:   z.string().min(1, "First name is required"),
-  last_name:    z.string().min(1, "Last name is required"),
-  role:         z.enum(["owner", "manager", "crew_lead", "crew_member"]),
-  is_active:    z.boolean(),
-  email:        z.string().email("Enter a valid email address.").optional(),
+  id:         z.string(),
+  first_name: z.string().min(1, "First name is required"),
+  last_name:  z.string().min(1, "Last name is required"),
+  role:       z.enum(["owner", "manager", "crew_lead", "crew_member"]),
+  is_active:  z.boolean(),
+  email:      z.string().email("Enter a valid email address.").optional(),
 })
 
 export type SaveUserValues = z.infer<typeof SaveUserSchema>
@@ -34,7 +33,7 @@ export async function saveUser(values: SaveUserValues): Promise<UserActionState>
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
-  const { id, auth_user_id, email, ...fields } = parsed.data
+  const { id, email, ...fields } = parsed.data
 
   const { error } = await db
     .from("users")
@@ -49,10 +48,22 @@ export async function saveUser(values: SaveUserValues): Promise<UserActionState>
 
   if (error) return { success: false, message: error.message }
 
-  // Update email in auth.users if a new one was provided
+  // Update email in auth.users if a new one was provided.
+  // Fetch auth_user_id from the authorized DB row — never trust client input for this.
   if (email) {
+    const { data: userData, error: fetchError } = await db
+      .from("users")
+      .select("auth_user_id")
+      .eq("id", id)
+      .eq("business_id", businessId)
+      .single()
+
+    if (fetchError || !userData?.auth_user_id) {
+      return { success: false, message: "Profile saved but could not resolve account for email update." }
+    }
+
     const admin = createAdminClient()
-    const { error: authError } = await admin.auth.admin.updateUserById(auth_user_id, { email })
+    const { error: authError } = await admin.auth.admin.updateUserById(userData.auth_user_id, { email })
     if (authError) return { success: false, message: `Profile saved but email update failed: ${authError.message}` }
   }
 

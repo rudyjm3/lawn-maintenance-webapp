@@ -122,7 +122,6 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
 
     const result = await saveUser({
       id:           member.id,
-      auth_user_id: member.auth_user_id,
       first_name:   data.first_name,
       last_name:    data.last_name,
       role:         data.role,
