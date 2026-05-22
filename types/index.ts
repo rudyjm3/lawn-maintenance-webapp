@@ -171,6 +171,7 @@ export interface Crew {
   name: string
   description: string | null
   is_active: boolean
+  color?: string | null
   // Joined
   members?: User[]
 }

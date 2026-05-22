@@ -16,6 +16,7 @@ const CrewSchema = z.object({
   name:        z.string().min(1, "Crew name is required"),
   description: z.string().optional(),
   is_active:   z.boolean().default(true),
+  color:       z.string().nullable().optional(),
 })
 
 const MembersSchema = z.object({
@@ -50,6 +51,7 @@ export async function saveCrew(values: CrewFormValues): Promise<CrewActionState>
     name:        fields.name.trim(),
     description: fields.description?.trim() || null,
     is_active:   fields.is_active,
+    color:       fields.color ?? null,
     business_id: businessId,
   }
 

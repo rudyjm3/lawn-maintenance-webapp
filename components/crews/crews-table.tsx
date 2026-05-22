@@ -82,7 +82,13 @@ export function CrewsTable({ crews, allUsers }: CrewsTableProps) {
                   >
                     {/* Crew name + description */}
                     <td className="px-4 py-3">
-                      <p className="font-medium text-foreground">{crew.name}</p>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-block h-3 w-3 shrink-0 rounded-full border border-border"
+                          style={{ backgroundColor: crew.color ?? "#6b7280" }}
+                        />
+                        <p className="font-medium text-foreground">{crew.name}</p>
+                      </div>
                       {crew.description && (
                         <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                           {crew.description}

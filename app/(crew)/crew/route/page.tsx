@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { MapPin, Clock, Navigation, ChevronDown, ChevronUp, ExternalLink, ChevronRight } from "lucide-react"
@@ -127,6 +127,18 @@ function StopCard({ stop }: { stop: any }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function RoutePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    }>
+      <RoutePageInner />
+    </Suspense>
+  )
+}
+
+function RoutePageInner() {
   const searchParams = useSearchParams()
   const selectedRouteId = searchParams.get("routeId")
 

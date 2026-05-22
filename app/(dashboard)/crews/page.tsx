@@ -1,8 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
+import { createAdminClient } from "@/lib/supabase/admin"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { CrewsTable } from "@/components/crews/crews-table"
+import { MembersTable } from "@/components/crews/members-table"
 import { InviteMemberDialog } from "@/components/crews/invite-member-dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import type { Crew, User } from "@/types"
+import type { MemberWithCrews } from "@/components/crews/member-sheet"
 
 export const metadata = { title: "Crews & Team" }
 
@@ -12,7 +16,7 @@ export default async function CrewsPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  const [crewsResult, usersResult] = await Promise.all([
+  const [crewsResult, usersResult, membersResult] = await Promise.all([
     db
       .from("crews")
       .select(`
@@ -30,7 +34,34 @@ export default async function CrewsPage() {
       .eq("business_id", businessId)
       .eq("is_active", true)
       .order("first_name"),
+    db
+      .from("users")
+      .select(`
+        id, auth_user_id, first_name, last_name, role, is_active,
+        crew_members(
+          is_lead,
+          crew:crews(id, name, is_active, color)
+        )
+      `)
+      .eq("business_id", businessId)
+      .order("first_name"),
   ])
+
+  // Fetch auth emails for all members via admin client
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawMembers = (membersResult.data ?? []) as any[]
+  const authUserIds: string[] = rawMembers.map((u) => u.auth_user_id).filter(Boolean)
+  const emailMap: Record<string, string> = {}
+
+  if (authUserIds.length > 0) {
+    const admin = createAdminClient()
+    await Promise.all(
+      authUserIds.map(async (authId) => {
+        const { data } = await admin.auth.admin.getUserById(authId)
+        if (data.user?.email) emailMap[authId] = data.user.email
+      }),
+    )
+  }
 
   // Flatten crew_members → members array on each crew
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +76,18 @@ export default async function CrewsPage() {
 
   const allUsers = (usersResult.data ?? []) as User[]
 
+  // Flatten crew_members → crews array on each member, attach email
+  const members = rawMembers.map((user) => ({
+    ...user,
+    email: emailMap[user.auth_user_id] ?? undefined,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    crews: (user.crew_members ?? [])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((cm: any) => cm.crew)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((cm: any) => ({ ...cm.crew, is_lead: cm.is_lead })),
+  })) as MemberWithCrews[]
+
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
@@ -57,7 +100,20 @@ export default async function CrewsPage() {
         <InviteMemberDialog />
       </div>
 
-      <CrewsTable crews={crews} allUsers={allUsers} />
+      <Tabs defaultValue="crews">
+        <TabsList>
+          <TabsTrigger value="crews">Crews</TabsTrigger>
+          <TabsTrigger value="members">Members</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="crews" className="mt-4 space-y-4">
+          <CrewsTable crews={crews} allUsers={allUsers} />
+        </TabsContent>
+
+        <TabsContent value="members" className="mt-4 space-y-4">
+          <MembersTable members={members} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

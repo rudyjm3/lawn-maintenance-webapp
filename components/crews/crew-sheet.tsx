@@ -51,7 +51,14 @@ interface CrewFormValues {
   name: string
   description: string
   is_active: boolean
+  color: string | null
 }
+
+const COLOR_PRESETS = [
+  "#ef4444", "#f97316", "#eab308", "#22c55e",
+  "#06b6d4", "#3b82f6", "#8b5cf6", "#ec4899",
+  "#6b7280", "#1c1917",
+]
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -69,11 +76,13 @@ export function CrewSheet({ open, onOpenChange, crew, allUsers }: CrewSheetProps
     setValue,
     formState: { errors },
   } = useForm<CrewFormValues>({
-    defaultValues: { name: "", description: "", is_active: true },
+    defaultValues: { name: "", description: "", is_active: true, color: null },
   })
 
   // eslint-disable-next-line react-hooks/incompatible-library
-  const isActive = watch("is_active")
+  const isActive    = watch("is_active")
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const selectedColor = watch("color")
 
   // Seed form when opening
   useEffect(() => {
@@ -83,6 +92,7 @@ export function CrewSheet({ open, onOpenChange, crew, allUsers }: CrewSheetProps
         name:        crew.name,
         description: crew.description ?? "",
         is_active:   crew.is_active,
+        color:       crew.color ?? null,
       })
       setMembers(
         (crew.members ?? []).map((u) => ({
@@ -128,6 +138,7 @@ export function CrewSheet({ open, onOpenChange, crew, allUsers }: CrewSheetProps
       name:        data.name,
       description: data.description,
       is_active:   data.is_active,
+      color:       data.color,
     })
 
     if (!crewResult.success) {
@@ -201,6 +212,33 @@ export function CrewSheet({ open, onOpenChange, crew, allUsers }: CrewSheetProps
               placeholder="Optional notes about this crew…"
               {...register("description")}
             />
+          </div>
+
+          {/* Crew color */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Label>Crew color</Label>
+              {selectedColor && (
+                <span
+                  className="inline-block h-4 w-4 rounded-full border border-border"
+                  style={{ backgroundColor: selectedColor }}
+                />
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {COLOR_PRESETS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setValue("color", selectedColor === c ? null : c)}
+                  className={`h-7 w-7 rounded-full border-2 transition-all ${
+                    selectedColor === c ? "border-foreground scale-110" : "border-transparent hover:border-muted-foreground/50"
+                  }`}
+                  style={{ backgroundColor: c }}
+                  aria-label={`Select color ${c}`}
+                />
+              ))}
+            </div>
           </div>
 
           {/* Active toggle */}
