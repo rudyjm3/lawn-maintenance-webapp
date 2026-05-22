@@ -18,7 +18,7 @@ export function WeekSnapshot({ days }: WeekSnapshotProps) {
             <div key={day.date} className="flex flex-1 flex-col items-center gap-1.5">
               <span
                 className={cn(
-                  "text-center text-xs font-medium",
+                  "whitespace-nowrap text-center text-xs font-medium",
                   day.isToday ? "text-primary" : "text-muted-foreground",
                 )}
               >
