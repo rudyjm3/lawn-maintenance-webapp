@@ -40,8 +40,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Claude Code
-.claude/
+# Claude Code — ignore data files but track project config and hooks
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
 
 # Supabase temp files
 supabase/.temp/
