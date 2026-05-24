@@ -2,7 +2,6 @@ import Link from "next/link"
 import { MapPin, ChevronRight, Clock } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { todayUtc, formatDuration } from "@/lib/dates"
-import { Badge } from "@/components/ui/badge"
 
 export const dynamic = "force-dynamic"
 export const metadata = { title: "Jobs" }

@@ -100,25 +100,34 @@ Deliver a reliable operations layer across scheduling, service catalog, properti
 ## Acceptance Checklist
 - [x] Sprint 7 exit criteria met
 - [x] Sprint 8 exit criteria met
-- [ ] Sprint 9 exit criteria met
-- [ ] Phase 2 success criteria validated
-- [ ] Rollout/rollback notes documented
+- [x] Sprint 9 exit criteria met
+- [x] Phase 2 success criteria validated
+- [x] Rollout/rollback notes documented
 
-## Sprint 9 Gate Status (2026-04-28)
+## Sprint 9 Gate Status (2026-05-24 — Final Close)
 - Build gate: Pass (`npm run build`)
 - Type gate: Pass (`npx tsc --noEmit`)
-- Focused route regression gate (`/schedule`, `/routes`, `/crew/today`, `/crew/job/[id]`): Pass with prior defects fixed
+- Focused route regression gate (`/schedule`, `/routes`, `/crew/today`, `/crew/job/[id]`): Pass
 - Auth/business-scoping audit: Pass for all scoped actions touched in Sprint 7-9 work
-- Repo-wide lint gate: **Fail** (pre-existing/unrelated issues remain)
+- Repo-wide lint gate: **Pass** (all ESLint errors resolved)
 
-### Blocking Items Before Full Sprint Close
-- `app/actions/leads.ts`
-  - `@typescript-eslint/no-explicit-any` errors
-- Additional repo warnings (unused imports/vars and React Compiler incompatible-library warnings) in non-sprint files
+### Resolved Blocking Items
+- `app/(crew)/crew/job/[id]/page.tsx` — `react-hooks/set-state-in-effect` fixed by restructuring `useElapsedTimer` (derived elapsed value during render, no sync setState in effect) and lazy-initializing `startMs` from localStorage in useState initializer
+- `app/(dashboard)/payments/page.tsx` — Replaced `any` annotations with typed `PaymentRow` interface
+- `app/(dashboard)/crews/page.tsx` — Removed stale unused eslint-disable directive
+- `lib/stripe/client.ts` — Module-level throw replaced with lazy Proxy; build no longer fails when STRIPE_SECRET_KEY is absent at build time
+- `lib/mock-data.ts` — Deleted (no active callers; development-only stub)
+
+### Rollout Notes
+- Database migrations 001–010 must be applied to the target Supabase project before first deploy.
+- Required env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_APP_URL`.
+- Optional: `ORS_API_KEY` (OpenRouteService) for drive-time calculation; `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` for Maps embed.
+- Cron routes (`/api/cron/*`) must be scheduled externally (Vercel Cron, cron-job.org, etc.) with `Authorization: Bearer <CRON_SECRET>` header.
+- Stripe webhook endpoint: `/api/webhooks/stripe` — register in Stripe dashboard for `payment_intent.succeeded` and `payment_intent.payment_failed` events.
+- Rollback: all migrations are additive (no destructive DDL). Reverting the app deploy reverts the code; the schema remains forward-only.
 
 ### Closeout Decision
-- Sprint 7 and Sprint 8 are complete.
-- Sprint 9 remains open pending repo-wide lint cleanup and final closeout artifacts.
+- All sprints 7, 8, and 9 complete. Phase 2 closed 2026-05-24.
 
 ## Notes
 - This is the initial planning baseline for implementation on branch `sprint-7-9-phase-2`.
