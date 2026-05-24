@@ -100,6 +100,23 @@ export interface ServiceType {
   is_seasonal: boolean
 }
 
+export interface ServiceTemplate {
+  id: string
+  business_id: string
+  name: string
+  service_type_id: string | null
+  frequency: string
+  season_start_month: number | null
+  season_end_month: number | null
+  default_duration_min: number | null
+  default_price: number | null
+  instructions: string | null
+  is_active: boolean
+  created_at: string
+  // Joined
+  service_type?: ServiceType
+}
+
 export interface PropertyService {
   id: string
   business_id: string

@@ -167,6 +167,21 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setCurrentUser(userRes.data)
       setJob(jobRes.data)
       setLoading(false)
+
+      // Stamp actual_arrival the first time a crew member opens this stop,
+      // provided the job isn't already finished and no arrival is recorded.
+      if (stopId && stopRes?.data && !stopRes.data.actual_arrival) {
+        const now = new Date().toISOString()
+        await db
+          .from("route_stops")
+          .update({ actual_arrival: now, status: "in_progress" })
+          .eq("id", stopId)
+          .eq("job_id", jobId)
+        // Also mark the job in_progress if still scheduled
+        if (jobRes.data.status === "scheduled" || jobRes.data.status === "unscheduled") {
+          await db.from("jobs").update({ status: "in_progress" }).eq("id", jobId)
+        }
+      }
     }
 
     load()

@@ -4,6 +4,8 @@ import {
   ClipboardList,
   Users,
   Clock,
+  TrendingUp,
+  ArrowRight,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { KpiCard } from "@/components/dashboard/kpi-card"
@@ -111,7 +113,7 @@ export default async function ReportsPage() {
 
   const { start, end, label } = monthRange()
 
-  const [jobsResult, paymentsResult, routesResult] = await Promise.all([
+  const [jobsResult, paymentsResult, routesResult, leadsResult] = await Promise.all([
     db
       .from("jobs")
       .select("id, status, price, estimated_duration_min, actual_duration_min")
@@ -127,6 +129,7 @@ export default async function ReportsPage() {
       .select("id, total_job_min, total_drive_min, crew:crews(name), stops:route_stops(id)")
       .gte("route_date", start)
       .lte("route_date", end),
+    db.from("leads").select("id, status"),
   ])
 
   if (jobsResult.error || paymentsResult.error || routesResult.error) {
@@ -140,6 +143,7 @@ export default async function ReportsPage() {
 
   const jobs = (jobsResult.data ?? []) as JobRow[]
   const payments = (paymentsResult.data ?? []) as { amount: number }[]
+  const allLeads = (leadsResult.data ?? []) as { id: string; status: string }[]
   const rawRoutes = (routesResult.data ?? []) as Array<{
     id: string
     total_job_min: number
@@ -188,6 +192,41 @@ export default async function ReportsPage() {
     })
   }
   const crewSummaries = [...crewMap.values()].sort((a, b) => b.jobMin - a.jobMin)
+
+  // ── Time accuracy ─────────────────────────────────────────────────────────────
+  const jobsWithBothTimes = completedJobs.filter(
+    (j) => j.estimated_duration_min != null && j.actual_duration_min != null,
+  )
+  const avgEstimate =
+    jobsWithBothTimes.length > 0
+      ? jobsWithBothTimes.reduce((s, j) => s + (j.estimated_duration_min ?? 0), 0) /
+        jobsWithBothTimes.length
+      : 0
+  const avgActual =
+    jobsWithBothTimes.length > 0
+      ? jobsWithBothTimes.reduce((s, j) => s + (j.actual_duration_min ?? 0), 0) /
+        jobsWithBothTimes.length
+      : 0
+  const avgVarianceMin = avgActual - avgEstimate
+  const avgVariancePct =
+    avgEstimate > 0 ? Math.round((avgVarianceMin / avgEstimate) * 100) : 0
+
+  // ── Lead funnel ───────────────────────────────────────────────────────────────
+  const FUNNEL_STAGES: { key: string; label: string }[] = [
+    { key: "new",           label: "New" },
+    { key: "contacted",     label: "Contacted" },
+    { key: "site_visit",    label: "Site Visit" },
+    { key: "estimate_sent", label: "Estimate Sent" },
+    { key: "won",           label: "Won" },
+  ]
+  const leadStatusCounts: Record<string, number> = {}
+  for (const l of allLeads) {
+    leadStatusCounts[l.status] = (leadStatusCounts[l.status] ?? 0) + 1
+  }
+  const totalLeads = allLeads.length
+  const wonLeads   = leadStatusCounts["won"] ?? 0
+  const lostLeads  = leadStatusCounts["lost"] ?? 0
+  const winRate    = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0
 
   return (
     <div className="space-y-8">
@@ -304,6 +343,123 @@ export default async function ReportsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── Actual vs estimated time ── */}
+      <div className="rounded-xl border border-border bg-card p-5 space-y-5">
+        <SectionHeader
+          title="Actual vs. Estimated Time"
+          sub={`${jobsWithBothTimes.length} completed job${jobsWithBothTimes.length !== 1 ? "s" : ""} with both estimates recorded this month`}
+        />
+        {jobsWithBothTimes.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No completed jobs with both estimated and actual durations this month.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-4">
+            {[
+              {
+                label: "Avg estimated",
+                value: `${Math.round(avgEstimate)} min`,
+                sub: "Per completed job",
+                icon: Clock,
+                color: "text-sky-600",
+              },
+              {
+                label: "Avg actual",
+                value: `${Math.round(avgActual)} min`,
+                sub: "Per completed job",
+                icon: Clock,
+                color: "text-blue-600",
+              },
+              {
+                label: "Avg variance",
+                value: avgVarianceMin === 0
+                  ? "On target"
+                  : `${avgVarianceMin > 0 ? "+" : ""}${Math.round(avgVarianceMin)} min`,
+                sub: avgEstimate > 0 ? `${avgVariancePct > 0 ? "+" : ""}${avgVariancePct}% vs estimate` : "",
+                icon: TrendingUp,
+                color: avgVarianceMin > 5 ? "text-orange-600" : avgVarianceMin < -5 ? "text-emerald-600" : "text-muted-foreground",
+              },
+              {
+                label: "Jobs over estimate",
+                value: `${jobsWithBothTimes.filter((j) => (j.actual_duration_min ?? 0) > (j.estimated_duration_min ?? 0)).length}`,
+                sub: `of ${jobsWithBothTimes.length} tracked`,
+                icon: Clock,
+                color: "text-amber-600",
+              },
+            ].map(({ label, value, sub, icon: Icon, color }) => (
+              <div key={label} className="space-y-1">
+                <div className={`flex items-center gap-1.5 text-xs font-medium ${color}`}>
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </div>
+                <p className="text-2xl font-semibold text-foreground tabular-nums">{value}</p>
+                {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Lead conversion funnel ── */}
+      <div className="rounded-xl border border-border bg-card p-5 space-y-5">
+        <SectionHeader
+          title="Lead Conversion Funnel"
+          sub={`${totalLeads} total lead${totalLeads !== 1 ? "s" : ""} — all time`}
+        />
+        {totalLeads === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No leads yet. Leads from your quote form will appear here.
+          </p>
+        ) : (
+          <>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-2">
+              {FUNNEL_STAGES.map((stage, i) => {
+                const count = leadStatusCounts[stage.key] ?? 0
+                const barPct = totalLeads > 0 ? Math.max(4, Math.round((count / totalLeads) * 100)) : 4
+                const isWon = stage.key === "won"
+                return (
+                  <div key={stage.key} className="flex flex-1 flex-col items-center gap-1.5">
+                    {i > 0 && (
+                      <ArrowRight className="hidden sm:block h-4 w-4 text-muted-foreground/50 self-center mb-0.5" />
+                    )}
+                    <div className="w-full flex flex-col items-center gap-1">
+                      <span className="text-sm font-semibold tabular-nums text-foreground">{count}</span>
+                      <div className="w-full h-8 rounded-md overflow-hidden bg-muted flex items-end">
+                        <div
+                          className={`w-full rounded-md transition-all ${isWon ? "bg-emerald-500" : "bg-primary/70"}`}
+                          style={{ height: `${barPct}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-muted-foreground text-center leading-tight">{stage.label}</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="flex flex-wrap gap-4 pt-2 border-t border-border">
+              <div className="space-y-0.5">
+                <p className="text-xs text-muted-foreground">Win rate</p>
+                <p className="text-lg font-semibold text-emerald-600">{winRate}%</p>
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-xs text-muted-foreground">Won</p>
+                <p className="text-lg font-semibold text-foreground">{wonLeads}</p>
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-xs text-muted-foreground">Lost</p>
+                <p className="text-lg font-semibold text-foreground">{lostLeads}</p>
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-xs text-muted-foreground">In pipeline</p>
+                <p className="text-lg font-semibold text-foreground">
+                  {totalLeads - wonLeads - lostLeads}
+                </p>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Efficiency row ── */}
