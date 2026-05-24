@@ -85,16 +85,19 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [reloadKey, setReloadKey]           = useState(0)
 
   // Start time — persisted in localStorage so navigation doesn't reset the timer.
-  // Initialized lazily from localStorage on first render to avoid setState in effect.
-  const [startMs] = useState<number | null>(() => {
+  // Initialized to null and set in a useEffect so this is SSR-safe (localStorage
+  // is unavailable during prerender). setState is deferred via setTimeout to
+  // satisfy react-hooks/set-state-in-effect.
+  const [startMs, setStartMs] = useState<number | null>(null)
+  const elapsedSec = useElapsedTimer(startMs)
+
+  useEffect(() => {
     const key = `job-start-${jobId}`
     const stored = localStorage.getItem(key)
-    if (stored) return parseInt(stored, 10)
-    const now = Date.now()
-    localStorage.setItem(key, String(now))
-    return now
-  })
-  const elapsedSec = useElapsedTimer(startMs)
+    const ms = stored ? parseInt(stored, 10) : Date.now()
+    if (!stored) localStorage.setItem(key, String(ms))
+    setTimeout(() => setStartMs(ms), 0)
+  }, [jobId])
 
   useEffect(() => {
     if (!showSkipSheet) return
