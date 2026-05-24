@@ -42,11 +42,15 @@ function useElapsedTimer(startMs: number | null) {
 
   useEffect(() => {
     if (startMs === null) return
-    setElapsed(Math.floor((Date.now() - startMs) / 1000))
-    const id = setInterval(() => {
+    // Defer first tick via setTimeout so it is not a synchronous setState in
+    // the effect body, and Date.now() is not called during render.
+    const initialId = setTimeout(() => {
+      setElapsed(Math.floor((Date.now() - startMs) / 1000))
+    }, 0)
+    const intervalId = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startMs) / 1000))
     }, 10_000)
-    return () => clearInterval(id)
+    return () => { clearTimeout(initialId); clearInterval(intervalId) }
   }, [startMs])
 
   return elapsed
@@ -80,20 +84,19 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [skipReason, setSkipReason]         = useState(SKIP_REASONS[0])
   const [reloadKey, setReloadKey]           = useState(0)
 
-  // Start time — persisted in localStorage so navigation doesn't reset the timer
+  // Start time — persisted in localStorage so navigation doesn't reset the timer.
+  // Initialized to null and set in a useEffect so this is SSR-safe (localStorage
+  // is unavailable during prerender). setState is deferred via setTimeout to
+  // satisfy react-hooks/set-state-in-effect.
   const [startMs, setStartMs] = useState<number | null>(null)
   const elapsedSec = useElapsedTimer(startMs)
 
   useEffect(() => {
     const key = `job-start-${jobId}`
     const stored = localStorage.getItem(key)
-    if (stored) {
-      setStartMs(parseInt(stored, 10))
-    } else {
-      const now = Date.now()
-      localStorage.setItem(key, String(now))
-      setStartMs(now)
-    }
+    const ms = stored ? parseInt(stored, 10) : Date.now()
+    if (!stored) localStorage.setItem(key, String(ms))
+    setTimeout(() => setStartMs(ms), 0)
   }, [jobId])
 
   useEffect(() => {
@@ -381,7 +384,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                     One-Off Job
                   </Badge>
                 ) : propertySvcs.length > 0 ? (
-                  propertySvcs.map((ps: any) =>
+                  propertySvcs.map((ps) =>
                     ps.service_type?.name ? (
                       <Badge key={ps.id} variant="secondary" className="text-xs font-medium">
                         {ps.service_type.name}

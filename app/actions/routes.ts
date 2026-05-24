@@ -357,3 +357,116 @@ export async function recalculateDriveTimes(
     message: `Drive times updated${note}.`,
   }
 }
+
+// ─── Optimize stop order (nearest-neighbor TSP) ───────────────────────────────
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+type StopWithCoords = {
+  id: string
+  lat: number
+  lng: number
+}
+
+function nearestNeighborOrder(stops: StopWithCoords[]): StopWithCoords[] {
+  if (stops.length <= 1) return stops
+  const unvisited = [...stops]
+  const ordered: StopWithCoords[] = [unvisited.shift()!]
+  while (unvisited.length > 0) {
+    const last = ordered[ordered.length - 1]
+    let minDist = Infinity
+    let nearestIdx = 0
+    for (let i = 0; i < unvisited.length; i++) {
+      const d = haversineKm(last.lat, last.lng, unvisited[i].lat, unvisited[i].lng)
+      if (d < minDist) { minDist = d; nearestIdx = i }
+    }
+    ordered.push(unvisited.splice(nearestIdx, 1)[0])
+  }
+  return ordered
+}
+
+export async function optimizeRoute(routeId: string): Promise<RouteActionState> {
+  const supabase = await createClient()
+  const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  const { data: route } = await db
+    .from("routes")
+    .select("is_locked")
+    .eq("id", routeId)
+    .eq("business_id", businessId)
+    .single()
+
+  if (!route) return { success: false, message: "Route not found." }
+  if (route.is_locked) return { success: false, message: "Cannot optimize a locked route." }
+
+  const { data: stops, error: stopsError } = await db
+    .from("route_stops")
+    .select("id, stop_order, job:jobs(property:properties(lat, lng))")
+    .eq("route_id", routeId)
+    .eq("business_id", businessId)
+    .order("stop_order", { ascending: true })
+
+  if (stopsError || !stops) return { success: false, message: stopsError?.message ?? "Stops not found." }
+
+  type RawStop = {
+    id: string
+    stop_order: number
+    job: { property: { lat: number | null; lng: number | null } | null } | null
+  }
+  const typedStops = stops as RawStop[]
+
+  const geocoded: StopWithCoords[] = typedStops
+    .filter((s) => s.job?.property?.lat != null && s.job?.property?.lng != null)
+    .map((s) => ({ id: s.id, lat: s.job!.property!.lat as number, lng: s.job!.property!.lng as number }))
+
+  if (geocoded.length < 2) {
+    return { success: false, message: "Need at least 2 stops with coordinates to optimize." }
+  }
+
+  // Stops without coordinates keep their existing relative order at the end
+  const geocodedIds = new Set(geocoded.map((s) => s.id))
+  const ungeocodedStops = typedStops.filter((s) => !geocodedIds.has(s.id))
+
+  const optimized = nearestNeighborOrder(geocoded)
+  const finalOrder = [...optimized.map((s) => s.id), ...ungeocodedStops.map((s) => s.id)]
+
+  const updates = finalOrder.map((stopId, index) =>
+    db
+      .from("route_stops")
+      .update({ stop_order: index + 1 })
+      .eq("id", stopId)
+      .eq("route_id", routeId)
+      .eq("business_id", businessId),
+  )
+  const results = await Promise.all(updates)
+  const failed = results.find((r: { error: unknown }) => r.error)
+  if (failed?.error) return { success: false, message: (failed.error as { message: string }).message }
+
+  await db
+    .from("routes")
+    .update({ optimization_status: "optimized" })
+    .eq("id", routeId)
+    .eq("business_id", businessId)
+
+  await recalculateDriveTimes(routeId)
+
+  revalidatePath(`/routes/${routeId}`)
+  revalidatePath("/routes")
+  revalidatePath("/dashboard")
+
+  const ungeocodedCount = ungeocodedStops.length
+  const note = ungeocodedCount > 0 ? ` (${ungeocodedCount} stop${ungeocodedCount > 1 ? "s" : ""} appended — no coordinates)` : ""
+  return { success: true, message: `Route optimized — ${optimized.length} stops reordered${note}.` }
+}

@@ -8,6 +8,7 @@ import { RouteStopList } from "@/components/routes/route-stop-list"
 import { RouteMap } from "@/components/routes/route-map"
 import { RouteLockToggle } from "@/components/routes/route-lock-toggle"
 import { RouteRecalculateButton } from "@/components/routes/route-recalculate-button"
+import { RouteOptimizeButton } from "@/components/routes/route-optimize-button"
 import { AddStopsPanel } from "@/components/routes/add-stops-panel"
 import { RouteCrewSelect } from "@/components/routes/route-crew-select"
 import type { Route, RouteStop } from "@/types"
@@ -170,6 +171,11 @@ export default async function RouteDetailPage({ params }: PageProps) {
           </div>
 
           <div className="flex gap-2 shrink-0">
+            <RouteOptimizeButton
+              routeId={typedRoute.id}
+              isLocked={typedRoute.is_locked}
+              geocodedStopCount={mapStops.length}
+            />
             <RouteRecalculateButton routeId={typedRoute.id} isLocked={typedRoute.is_locked} />
             <RouteLockToggle routeId={typedRoute.id} isLocked={typedRoute.is_locked} />
           </div>

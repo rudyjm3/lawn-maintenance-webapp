@@ -3,6 +3,20 @@ import { createClient } from "@/lib/supabase/server"
 
 type SearchParams = Promise<{ q?: string; method?: string; from?: string; to?: string }>
 
+type PaymentRow = {
+  id: string
+  amount: number
+  method: string | null
+  payment_date: string
+  reference: string | null
+  created_at: string
+  invoice: {
+    id: string
+    invoice_number: string
+    client: { id: string; name: string | null } | null
+  } | null
+}
+
 export const metadata = { title: "Payments" }
 
 export default async function PaymentsPage({ searchParams }: { searchParams: SearchParams }) {
@@ -26,7 +40,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Sea
   }
 
   const q = (params.q ?? "").trim().toLowerCase()
-  const payments = (data ?? []).filter((p: any) => {
+  const payments = (data ?? [] as PaymentRow[]).filter((p: PaymentRow) => {
     if (!q) return true
     return (
       String(p.invoice?.invoice_number ?? "").toLowerCase().includes(q) ||
@@ -35,9 +49,9 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Sea
     )
   })
 
-  const totalCollected = payments.reduce((sum: number, p: any) => sum + Number(p.amount), 0)
+  const totalCollected = payments.reduce((sum: number, p: PaymentRow) => sum + Number(p.amount), 0)
   const paymentCount = payments.length
-  const methods = Array.from(new Set((data ?? []).map((p: any) => p.method).filter(Boolean))) as string[]
+  const methods = Array.from(new Set((data ?? [] as PaymentRow[]).map((p: PaymentRow) => p.method).filter(Boolean))) as string[]
 
   return (
     <div className="space-y-5">
@@ -90,7 +104,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Sea
                 <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">No payments found.</td>
               </tr>
             )}
-            {payments.map((p: any) => (
+            {payments.map((p: PaymentRow) => (
               <tr key={p.id} className="hover:bg-muted/20">
                 <td className="px-4 py-3 text-muted-foreground">{new Date(`${p.payment_date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</td>
                 <td className="px-4 py-3">

@@ -1,6 +1,4 @@
-import { Resend } from "resend"
-
-const resend = new Resend(process.env.RESEND_API_KEY)
+import { resend } from "@/lib/email/client"
 const FROM = process.env.RESEND_FROM_EMAIL ?? "jobs@greenroute.app"
 
 export interface JobCompletionPayload {

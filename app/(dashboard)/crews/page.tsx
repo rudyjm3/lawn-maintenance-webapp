@@ -80,7 +80,6 @@ export default async function CrewsPage() {
   const members = rawMembers.map((user) => ({
     ...user,
     email: emailMap[user.auth_user_id] ?? undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     crews: (user.crew_members ?? [])
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .filter((cm: any) => cm.crew)

@@ -211,7 +211,7 @@ function RoutePageInner() {
     }
 
     load()
-  }, [reloadKey])
+  }, [reloadKey, selectedRouteId])
 
   if (loading) {
     return (
