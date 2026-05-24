@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
 // Routes that require authentication
-const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/schedule", "/routes", "/jobs", "/clients", "/properties", "/service-catalog", "/schedules", "/crews", "/leads", "/estimates", "/invoices", "/payments", "/reports", "/settings", "/crew"]
+const PROTECTED_PREFIXES = ["/dashboard", "/onboarding", "/schedule", "/routes", "/jobs", "/clients", "/properties", "/service-catalog", "/schedules", "/crews", "/leads", "/estimates", "/invoices", "/payments", "/reports", "/settings", "/crew", "/owner"]
 
 // Routes that should redirect to dashboard if already authenticated
 const AUTH_ROUTES = ["/login", "/signup", "/forgot-password"]
@@ -52,7 +52,7 @@ export async function proxy(request: NextRequest) {
     const isCrewRole = role === "crew_member" || role === "crew_lead"
 
     // Crew member trying to access owner/dashboard routes → crew today
-    const isDashboardRoute = ["/dashboard", "/onboarding", "/schedule", "/routes", "/jobs", "/clients", "/properties", "/service-catalog", "/schedules", "/crews", "/leads", "/estimates", "/invoices", "/payments", "/reports", "/settings"].some((p) => pathname.startsWith(p))
+    const isDashboardRoute = ["/dashboard", "/onboarding", "/schedule", "/routes", "/jobs", "/clients", "/properties", "/service-catalog", "/schedules", "/crews", "/leads", "/estimates", "/invoices", "/payments", "/reports", "/settings", "/owner"].some((p) => pathname.startsWith(p))
     if (isDashboardRoute && isCrewRole) {
       const dest = request.nextUrl.clone()
       dest.pathname = "/crew/today"

@@ -19,10 +19,12 @@ import {
   BarChart3,
   Settings,
   Leaf,
+  Smartphone,
 } from "lucide-react"
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, phase: "mvp" },
+  { label: "Today (Mobile)", href: "/owner/today", icon: Smartphone, phase: "mvp" },
   { label: "Schedule", href: "/schedule", icon: CalendarDays, phase: "mvp" },
   { label: "Jobs", href: "/jobs", icon: ClipboardList, phase: "mvp" },
   { label: "Clients", href: "/clients", icon: Users, phase: "mvp" },
