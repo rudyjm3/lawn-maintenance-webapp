@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AddPropertySheet } from "@/components/properties/add-property-sheet"
+import { AddClientSheet } from "@/components/clients/add-client-sheet"
 import { PropertyServicesPanel } from "@/components/service-catalog/property-services-panel"
 import { type Client, type Property, type Job, type ServiceType, type PropertyService, type Communication } from "@/types"
 import { logCommunication } from "@/app/actions/communications"
@@ -53,27 +54,42 @@ function OverviewTab({
   properties: Property[]
   jobs: Job[]
 }) {
+  const [editClientOpen, setEditClientOpen] = useState(false)
+  // Use local date so US evening hours don't advance the cutoff to tomorrow (UTC would)
+  const now = new Date()
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
   const completedJobs = jobs.filter((j) => j.status === "completed")
-  const scheduledJobs = jobs.filter((j) => j.status === "scheduled")
+  // Only consider scheduled jobs on or after today — past unactioned jobs are stale
+  const scheduledJobs = jobs.filter(
+    (j) => j.status === "scheduled" && (j.service_date ?? "") >= todayIso,
+  )
   const recentJob = completedJobs.sort(
-    (a, b) =>
-      new Date(b.service_date ?? "").getTime() -
-      new Date(a.service_date ?? "").getTime(),
+    (a, b) => (b.service_date ?? "").localeCompare(a.service_date ?? ""),
   )[0]
   const nextJob = scheduledJobs.sort(
-    (a, b) =>
-      new Date(a.service_date ?? "").getTime() -
-      new Date(b.service_date ?? "").getTime(),
+    (a, b) => (a.service_date ?? "").localeCompare(b.service_date ?? ""),
   )[0]
 
   return (
+    <>
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
       {/* Contact details */}
       <div className="lg:col-span-2 space-y-4">
         <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-          <h3 className="text-sm font-semibold text-foreground">
-            Contact Information
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">
+              Contact Information
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={() => setEditClientOpen(true)}
+              aria-label="Edit client"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          </div>
           <dl className="space-y-3 text-sm">
             {client.phone && (
               <div className="flex justify-between">
@@ -165,10 +181,10 @@ function OverviewTab({
                   <span className="text-muted-foreground">Last service</span>
                   <span className="font-medium text-right">
                     {recentJob.service_date
-                      ? new Date(recentJob.service_date).toLocaleDateString(
-                          "en-US",
-                          { month: "short", day: "numeric" },
-                        )
+                      ? (() => {
+                          const [y, m, d] = recentJob.service_date.split("-").map(Number)
+                          return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        })()
                       : "—"}
                   </span>
                 </div>
@@ -178,10 +194,10 @@ function OverviewTab({
                   <span className="text-muted-foreground">Next service</span>
                   <span className="font-medium text-right text-primary">
                     {nextJob.service_date
-                      ? new Date(nextJob.service_date).toLocaleDateString(
-                          "en-US",
-                          { month: "short", day: "numeric" },
-                        )
+                      ? (() => {
+                          const [y, m, d] = nextJob.service_date.split("-").map(Number)
+                          return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        })()
                       : "—"}
                   </span>
                 </div>
@@ -191,6 +207,13 @@ function OverviewTab({
         )}
       </div>
     </div>
+
+    <AddClientSheet
+      open={editClientOpen}
+      onOpenChange={setEditClientOpen}
+      client={client}
+    />
+    </>
   )
 }
 

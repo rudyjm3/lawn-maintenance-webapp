@@ -35,7 +35,13 @@ function buildWeekDays(anchor: Date, allJobs: Job[]): WeekDaySnapshot[] {
 
   return Array.from({ length: 7 }, (_, i) => {
     const date = isoDate(anchor, i)
-    const jobs = allJobs.filter((job) => job.service_date === date && job.status !== "cancelled")
+    const jobs = allJobs
+      .filter((job) => job.service_date === date && job.status !== "cancelled")
+      .sort((a, b) => {
+        const aOrder = a.route_stops?.[0]?.stop_order ?? Infinity
+        const bOrder = b.route_stops?.[0]?.stop_order ?? Infinity
+        return aOrder - bOrder
+      })
     const scheduledMinutes = jobs.reduce((sum, job) => sum + job.estimated_duration_min, 0)
     const dateObject = new Date(`${date}T12:00:00`)
 

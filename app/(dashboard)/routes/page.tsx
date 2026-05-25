@@ -35,7 +35,7 @@ export default async function RoutesPage() {
   const [routesResult, crewsResult] = await Promise.all([
     db
       .from("routes")
-      .select("id, route_date, total_job_min, total_drive_min, is_locked, crew:crews(id, name)")
+      .select("id, route_date, total_job_min, total_drive_min, is_locked, crew:crews(id, name), route_stops(id)")
       .gte("route_date", startIso)
       .lte("route_date", endIso)
       .order("route_date", { ascending: true }),
@@ -88,13 +88,14 @@ export default async function RoutesPage() {
               <tr>
                 <th className="px-4 py-2 font-medium">Date</th>
                 <th className="px-4 py-2 font-medium">Crew</th>
+                <th className="px-4 py-2 font-medium">Jobs</th>
                 <th className="px-4 py-2 font-medium">Job Time</th>
                 <th className="px-4 py-2 font-medium">Drive Time</th>
                 <th className="px-4 py-2 font-medium">Status</th>
               </tr>
             </thead>
             <tbody>
-              {routes.map((route: { id: string; route_date: string; total_job_min: number; total_drive_min: number; is_locked: boolean; crew: { name: string } | null }) => (
+              {routes.map((route: { id: string; route_date: string; total_job_min: number; total_drive_min: number; is_locked: boolean; crew: { name: string } | null; route_stops: { id: string }[] }) => (
                 <tr key={route.id} className="border-t border-border hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3">
                     <Link href={`/routes/${route.id}`} className="font-medium hover:underline">
@@ -102,6 +103,7 @@ export default async function RoutesPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3">{route.crew?.name ?? "Unassigned"}</td>
+                  <td className="px-4 py-3">{route.route_stops?.length ?? 0}</td>
                   <td className="px-4 py-3">{route.total_job_min > 0 ? formatDuration(route.total_job_min) : "—"}</td>
                   <td className="px-4 py-3">{route.total_drive_min > 0 ? formatDuration(route.total_drive_min) : "—"}</td>
                   <td className="px-4 py-3">

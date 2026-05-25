@@ -223,7 +223,7 @@ export function ServiceTemplatesTable({ templates: initial, serviceTypes }: Prop
       )}
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto px-6">
           <SheetHeader>
             <SheetTitle>{editing ? "Edit Template" : "New Service Template"}</SheetTitle>
             <SheetDescription>
