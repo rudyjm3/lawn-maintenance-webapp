@@ -43,9 +43,20 @@ export async function upsertServiceTemplate(
       .select("*, service_type:service_types(id, name, default_duration_min, default_price, is_recurring, is_seasonal)")
       .single()
   } else {
+    // Resolve the caller's business_id — required by the NOT NULL constraint and RLS.
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, message: "Not authenticated." }
+    const { data: userRow, error: userErr } = await db
+      .from("users")
+      .select("business_id")
+      .eq("auth_user_id", user.id)
+      .single()
+    if (userErr || !userRow) {
+      return { success: false, message: userErr?.message ?? "Could not resolve business." }
+    }
     result = await db
       .from("service_templates")
-      .insert(payload)
+      .insert({ ...payload, business_id: userRow.business_id })
       .select("*, service_type:service_types(id, name, default_duration_min, default_price, is_recurring, is_seasonal)")
       .single()
   }

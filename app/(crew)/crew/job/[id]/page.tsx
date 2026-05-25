@@ -142,7 +142,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           .single(),
         stopId
           ? db.from("route_stops")
-              .select("id, status, actual_arrival, est_arrival, est_finish, stop_order")
+              .select("id, status, actual_arrival, est_arrival, est_finish, stop_order, route:routes(route_date)")
               .eq("id", stopId)
               .single()
           : Promise.resolve({ data: null }),
@@ -168,9 +168,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setJob(jobRes.data)
       setLoading(false)
 
-      // Stamp actual_arrival the first time a crew member opens this stop,
-      // provided the job isn't already finished and no arrival is recorded.
-      if (stopId && stopRes?.data && !stopRes.data.actual_arrival) {
+      // Stamp actual_arrival only for today's route — previewing a future stop
+      // from the Upcoming Jobs list must not prematurely flip the stop/job to
+      // in_progress and corrupt route progress metrics.
+      const stopRouteDate = stopRes?.data?.route?.route_date
+      const isToday = stopRouteDate === new Date().toISOString().slice(0, 10)
+      if (stopId && stopRes?.data && !stopRes.data.actual_arrival && isToday) {
         const now = new Date().toISOString()
         await db
           .from("route_stops")
