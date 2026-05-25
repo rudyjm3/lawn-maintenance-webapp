@@ -142,7 +142,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           .single(),
         stopId
           ? db.from("route_stops")
-              .select("id, status, actual_arrival, est_arrival, est_finish, stop_order")
+              .select("id, status, actual_arrival, est_arrival, est_finish, stop_order, route:routes(route_date)")
               .eq("id", stopId)
               .single()
           : Promise.resolve({ data: null }),
@@ -167,6 +167,24 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
       setCurrentUser(userRes.data)
       setJob(jobRes.data)
       setLoading(false)
+
+      // Stamp actual_arrival only for today's route — previewing a future stop
+      // from the Upcoming Jobs list must not prematurely flip the stop/job to
+      // in_progress and corrupt route progress metrics.
+      const stopRouteDate = stopRes?.data?.route?.route_date
+      const isToday = stopRouteDate === new Date().toISOString().slice(0, 10)
+      if (stopId && stopRes?.data && !stopRes.data.actual_arrival && isToday) {
+        const now = new Date().toISOString()
+        await db
+          .from("route_stops")
+          .update({ actual_arrival: now, status: "in_progress" })
+          .eq("id", stopId)
+          .eq("job_id", jobId)
+        // Also mark the job in_progress if still scheduled
+        if (jobRes.data.status === "scheduled" || jobRes.data.status === "unscheduled") {
+          await db.from("jobs").update({ status: "in_progress" }).eq("id", jobId)
+        }
+      }
     }
 
     load()
