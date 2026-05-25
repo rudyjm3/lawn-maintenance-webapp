@@ -55,7 +55,9 @@ function OverviewTab({
   jobs: Job[]
 }) {
   const [editClientOpen, setEditClientOpen] = useState(false)
-  const todayIso = new Date().toISOString().slice(0, 10)
+  // Use local date so US evening hours don't advance the cutoff to tomorrow (UTC would)
+  const now = new Date()
+  const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`
   const completedJobs = jobs.filter((j) => j.status === "completed")
   // Only consider scheduled jobs on or after today — past unactioned jobs are stale
   const scheduledJobs = jobs.filter(
