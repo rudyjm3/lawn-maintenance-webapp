@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Plus, Pencil, CalendarDays, Trash2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -32,6 +33,7 @@ export function PropertyServicesPanel({
   propertyServices,
   serviceTypes,
 }: PropertyServicesPanelProps) {
+  const router = useRouter()
   const [assignOpen, setAssignOpen] = useState(false)
   const [editingService, setEditingService] = useState<PropertyService | undefined>(undefined)
   const [scheduleTarget, setScheduleTarget] = useState<PropertyService | undefined>(undefined)
@@ -62,6 +64,7 @@ export function PropertyServicesPanel({
       toast.error(result.message)
     } else {
       toast.success(result.message)
+      router.refresh()
     }
   }
 

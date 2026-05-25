@@ -180,6 +180,7 @@ export interface Job {
   property?: Property
   service_type?: ServiceType
   crew?: Crew
+  route_stops?: { stop_order: number }[]
 }
 
 export interface Crew {

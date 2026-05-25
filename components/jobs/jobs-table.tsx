@@ -79,9 +79,10 @@ export function JobsTable({
     [clientFilter, properties],
   )
 
-  const filteredJobs = useMemo(() => {
+  // Jobs matching all filters except status — used for tab counts so badges reflect
+  // the active client/property/date/search context rather than all jobs.
+  const contextFilteredJobs = useMemo(() => {
     const query = search.trim().toLowerCase()
-
     return jobs.filter((job) => {
       const serviceLabel = getJobServiceLabel(job).toLowerCase()
       const matchesSearch =
@@ -89,23 +90,21 @@ export function JobsTable({
         job.client?.name?.toLowerCase().includes(query) ||
         job.property?.address?.toLowerCase().includes(query) ||
         serviceLabel.includes(query)
-
-      const matchesStatus = statusFilter === "all" || job.status === statusFilter
       const matchesClient = clientFilter === "all" || job.client_id === clientFilter
       const matchesProperty = propertyFilter === "all" || job.property_id === propertyFilter
       const matchesDateFrom = !dateFrom || (!!job.service_date && job.service_date >= dateFrom)
       const matchesDateTo = !dateTo || (!!job.service_date && job.service_date <= dateTo)
-
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesClient &&
-        matchesProperty &&
-        matchesDateFrom &&
-        matchesDateTo
-      )
+      return matchesSearch && matchesClient && matchesProperty && matchesDateFrom && matchesDateTo
     })
-  }, [clientFilter, dateFrom, dateTo, jobs, propertyFilter, search, statusFilter])
+  }, [clientFilter, dateFrom, dateTo, jobs, propertyFilter, search])
+
+  const filteredJobs = useMemo(
+    () =>
+      statusFilter === "all"
+        ? contextFilteredJobs
+        : contextFilteredJobs.filter((job) => job.status === statusFilter),
+    [contextFilteredJobs, statusFilter],
+  )
 
   return (
     <>
@@ -128,7 +127,9 @@ export function JobsTable({
       <div className="flex gap-1 overflow-x-auto border-b border-border">
         {STATUS_FILTERS.map(({ label, value }) => {
           const count =
-            value === "all" ? jobs.length : jobs.filter((job) => job.status === value).length
+            value === "all"
+              ? contextFilteredJobs.length
+              : contextFilteredJobs.filter((job) => job.status === value).length
           return (
             <button
               key={value}
@@ -162,7 +163,7 @@ export function JobsTable({
             Client
           </span>
           <Select value={clientFilter} onValueChange={setClientFilter}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -181,7 +182,7 @@ export function JobsTable({
             Property
           </span>
           <Select value={propertyFilter} onValueChange={setPropertyFilter}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -276,7 +277,7 @@ export function JobsTable({
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Showing {filteredJobs.length} of {jobs.length} job{jobs.length !== 1 ? "s" : ""}
+        Showing {filteredJobs.length} of {contextFilteredJobs.length} job{contextFilteredJobs.length !== 1 ? "s" : ""}
       </p>
 
       <AddJobSheet
