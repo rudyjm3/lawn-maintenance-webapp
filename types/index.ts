@@ -86,8 +86,10 @@ export interface Property {
   pet_notes: string | null
   lawn_size: string | null
   is_commercial: boolean
+  zone_id: string | null
   // Joined
   client?: Client
+  zone?: ServiceZone
 }
 
 export interface ServiceType {
@@ -243,6 +245,7 @@ export interface ServiceZone {
   name: string
   color: string
   description: string | null
+  coordinates: [number, number][] | null
 }
 
 export interface Lead {

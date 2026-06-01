@@ -20,6 +20,7 @@ import {
   Settings,
   Leaf,
   Smartphone,
+  Shapes,
 } from "lucide-react"
 
 const navItems = [
@@ -31,6 +32,7 @@ const navItems = [
   { label: "Properties", href: "/properties", icon: Building2, phase: "mvp" },
   { label: "Services", href: "/service-catalog", icon: Wrench, phase: "mvp" },
   { label: "Route Planner", href: "/routes", icon: Map, phase: "phase2" },
+  { label: "Service Zones", href: "/zones", icon: Shapes, phase: "phase2" },
   { label: "Crews & Team", href: "/crews", icon: UserCog, phase: "phase2" },
   { label: "Leads / CRM", href: "/leads", icon: Megaphone, phase: "phase2" },
   { label: "Estimates", href: "/estimates", icon: FileText, phase: "phase3" },

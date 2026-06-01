@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { PropertiesTable } from "@/components/properties/properties-table"
-import type { Client, Property } from "@/types"
+import type { Client, Property, ServiceZone } from "@/types"
 
 export const metadata = { title: "Properties" }
 
@@ -9,13 +9,15 @@ export default async function PropertiesPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  const [propertiesResult, clientsResult] = await Promise.all([
+  const [propertiesResult, clientsResult, zonesResult] = await Promise.all([
     db.from("properties").select("*, client:clients(*)").order("address"),
     db.from("clients").select("id, name").order("name"),
+    db.from("service_zones").select("id, name, color").order("name"),
   ])
 
   const properties = (propertiesResult.data ?? []) as Property[]
   const clients = (clientsResult.data ?? []) as Client[]
+  const zones = (zonesResult.data ?? []) as ServiceZone[]
 
   const commercialCount = properties.filter((p) => p.is_commercial).length
   const residentialCount = properties.filter((p) => !p.is_commercial).length
@@ -30,7 +32,7 @@ export default async function PropertiesPage() {
         </p>
       </div>
 
-      <PropertiesTable properties={properties} clients={clients} />
+      <PropertiesTable properties={properties} clients={clients} zones={zones} />
     </div>
   )
 }
