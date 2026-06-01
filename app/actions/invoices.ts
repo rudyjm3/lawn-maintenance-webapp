@@ -198,6 +198,13 @@ export async function deleteInvoice(invoiceId: string): Promise<InvoiceActionSta
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
+  const { data: existing } = await supabase
+    .from("invoices")
+    .select("client_id")
+    .eq("id", invoiceId)
+    .eq("business_id", businessId)
+    .single()
+
   const { error } = await supabase
     .from("invoices")
     .delete()
@@ -207,6 +214,7 @@ export async function deleteInvoice(invoiceId: string): Promise<InvoiceActionSta
   if (error) return { success: false, message: error.message }
 
   revalidatePath("/invoices")
+  if (existing?.client_id) revalidatePath(`/clients/${existing.client_id}`)
   return { success: true, message: "Invoice deleted." }
 }
 
