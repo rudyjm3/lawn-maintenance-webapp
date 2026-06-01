@@ -27,7 +27,9 @@ import { Button } from "@/components/ui/button"
 import { AddPropertySheet } from "@/components/properties/add-property-sheet"
 import { AddClientSheet } from "@/components/clients/add-client-sheet"
 import { PropertyServicesPanel } from "@/components/service-catalog/property-services-panel"
-import { type Client, type Property, type Job, type ServiceType, type PropertyService, type Communication } from "@/types"
+import { type Client, type Property, type Job, type ServiceType, type PropertyService, type Communication, type Estimate, type Invoice } from "@/types"
+import { EstimatesTable } from "@/components/estimates/estimates-table"
+import { InvoicesTable } from "@/components/invoices/invoices-table"
 import { logCommunication } from "@/app/actions/communications"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -759,6 +761,18 @@ function NotesTab({ client }: { client: Client }) {
   )
 }
 
+// ─── Estimates tab ────────────────────────────────────────────────────────────
+
+function EstimatesTab({ estimates }: { estimates: Estimate[] }) {
+  return <EstimatesTable estimates={estimates} />
+}
+
+// ─── Invoices tab ─────────────────────────────────────────────────────────────
+
+function InvoicesTab({ invoices }: { invoices: Invoice[] }) {
+  return <InvoicesTable invoices={invoices} />
+}
+
 // ─── Main exported component ──────────────────────────────────────────────────
 
 interface ClientDetailTabsProps {
@@ -768,6 +782,8 @@ interface ClientDetailTabsProps {
   serviceTypes: ServiceType[]
   propertyServices: PropertyService[]
   communications: Communication[]
+  estimates: Estimate[]
+  invoices: Invoice[]
   revenueSummary: { earned: number; collected: number; outstanding: number; paymentCount: number; lastPaymentDate: string | null }
 }
 
@@ -778,6 +794,8 @@ export function ClientDetailTabs({
   serviceTypes,
   propertyServices,
   communications,
+  estimates,
+  invoices,
   revenueSummary,
 }: ClientDetailTabsProps) {
   return (
@@ -788,6 +806,8 @@ export function ClientDetailTabs({
           { value: "properties", label: `Properties (${properties.length})` },
           { value: "services", label: `Services (${propertyServices.length})` },
           { value: "history", label: `Job History (${jobs.length})` },
+          { value: "estimates", label: `Estimates (${estimates.length})` },
+          { value: "invoices", label: `Invoices (${invoices.length})` },
           { value: "activity", label: `Activity (${communications.length})` },
           { value: "notes", label: "Notes" },
         ].map(({ value, label }) => (
@@ -825,6 +845,12 @@ export function ClientDetailTabs({
           <RevenueSummaryStrip summary={revenueSummary} />
           <JobHistoryTab jobs={jobs} />
         </div>
+      </TabsContent>
+      <TabsContent value="estimates">
+        <EstimatesTab estimates={estimates} />
+      </TabsContent>
+      <TabsContent value="invoices">
+        <InvoicesTab invoices={invoices} />
       </TabsContent>
       <TabsContent value="activity">
         <ActivityTab client={client} communications={communications} />

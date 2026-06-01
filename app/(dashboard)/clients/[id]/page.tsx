@@ -14,7 +14,7 @@ import { ClientStatusBadge } from "@/components/clients/client-status-badge"
 import { ClientDetailTabs } from "@/components/clients/client-detail-tabs"
 import { ClientAutopayCard } from "@/components/clients/client-autopay-card"
 import { createClient } from "@/lib/supabase/server"
-import type { Client, Property, Job, ServiceType, PropertyService, Communication } from "@/types"
+import type { Client, Property, Job, ServiceType, PropertyService, Communication, Estimate, Invoice } from "@/types"
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -46,7 +46,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
 
   const propertyIds = ((properties ?? []) as Property[]).map((p) => p.id)
 
-  const [jobsResult, serviceTypesResult, propertyServicesResult, commsResult, billingSettingsResult, invoicesResult] = await Promise.all([
+  const [jobsResult, serviceTypesResult, propertyServicesResult, commsResult, billingSettingsResult, invoicesResult, estimatesResult] = await Promise.all([
     db
       .from("jobs")
       .select("*, property:properties(*), property_service:property_services(*, service_type:service_types(*))")
@@ -71,19 +71,22 @@ export default async function ClientDetailPage({ params }: PageProps) {
       .maybeSingle(),
     db
       .from("invoices")
-      .select("id, status, total, payments:payments(amount, payment_date)")
-      .eq("client_id", id),
+      .select("*, client:clients(id, name), payments:payments(amount, payment_date)")
+      .eq("client_id", id)
+      .order("created_at", { ascending: false }),
+    db
+      .from("estimates")
+      .select("*, client:clients(id, name)")
+      .eq("client_id", id)
+      .order("created_at", { ascending: false }),
   ])
 
   const jobs = normalizeJobRows((jobsResult.data ?? []) as Record<string, unknown>[]) as Job[]
   const serviceTypes = (serviceTypesResult.data ?? []) as ServiceType[]
   const propertyServices = (propertyServicesResult.data ?? []) as PropertyService[]
   const communications = (commsResult.data ?? []) as Communication[]
-  const invoices = (invoicesResult.data ?? []) as Array<{
-    status: string
-    total: number
-    payments?: Array<{ amount: number; payment_date: string }>
-  }>
+  const invoices = (invoicesResult.data ?? []) as Invoice[]
+  const estimates = (estimatesResult.data ?? []) as Estimate[]
   const revenueEarned = jobs
     .filter((j) => j.status === "completed")
     .reduce((sum, j) => sum + Number(j.price), 0)
@@ -190,6 +193,8 @@ export default async function ClientDetailPage({ params }: PageProps) {
         serviceTypes={serviceTypes}
         propertyServices={propertyServices}
         communications={communications}
+        estimates={estimates}
+        invoices={invoices}
         revenueSummary={{
           earned: revenueEarned,
           collected: revenueCollected,

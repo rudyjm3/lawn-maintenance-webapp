@@ -156,6 +156,13 @@ export async function deleteEstimate(estimateId: string): Promise<EstimateAction
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
+  const { data: existing } = await supabase
+    .from("estimates")
+    .select("client_id")
+    .eq("id", estimateId)
+    .eq("business_id", businessId)
+    .single()
+
   const { error } = await supabase
     .from("estimates")
     .delete()
@@ -165,6 +172,7 @@ export async function deleteEstimate(estimateId: string): Promise<EstimateAction
   if (error) return { success: false, message: error.message }
 
   revalidatePath("/estimates")
+  if (existing?.client_id) revalidatePath(`/clients/${existing.client_id}`)
   return { success: true, message: "Estimate deleted." }
 }
 
