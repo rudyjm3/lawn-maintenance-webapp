@@ -46,7 +46,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
 
   const propertyIds = ((properties ?? []) as Property[]).map((p) => p.id)
 
-  const [jobsResult, serviceTypesResult, propertyServicesResult, commsResult, billingSettingsResult, invoicesResult, estimatesResult] = await Promise.all([
+  const [jobsResult, serviceTypesResult, propertyServicesResult, commsResult, billingSettingsResult, invoicesResult, estimatesResult, reviewsResult] = await Promise.all([
     db
       .from("jobs")
       .select("*, property:properties(*), property_service:property_services(*, service_type:service_types(*))")
@@ -79,6 +79,12 @@ export default async function ClientDetailPage({ params }: PageProps) {
       .select("*, client:clients(id, name)")
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
+    db
+      .from("jobs")
+      .select("id, title, service_date, review_rating, review_text, review_submitted_at")
+      .eq("client_id", id)
+      .not("review_submitted_at", "is", null)
+      .order("review_submitted_at", { ascending: false }),
   ])
 
   const jobs = normalizeJobRows((jobsResult.data ?? []) as Record<string, unknown>[]) as Job[]
@@ -87,6 +93,8 @@ export default async function ClientDetailPage({ params }: PageProps) {
   const communications = (commsResult.data ?? []) as Communication[]
   const invoices = (invoicesResult.data ?? []) as Invoice[]
   const estimates = (estimatesResult.data ?? []) as Estimate[]
+  type ReviewJob = { id: string; title: string | null; service_date: string | null; review_rating: number | null; review_text: string | null; review_submitted_at: string | null }
+  const reviews = (reviewsResult.data ?? []) as ReviewJob[]
   const revenueEarned = jobs
     .filter((j) => j.status === "completed")
     .reduce((sum, j) => sum + Number(j.price), 0)
@@ -195,6 +203,7 @@ export default async function ClientDetailPage({ params }: PageProps) {
         communications={communications}
         estimates={estimates}
         invoices={invoices}
+        reviews={reviews}
         revenueSummary={{
           earned: revenueEarned,
           collected: revenueCollected,

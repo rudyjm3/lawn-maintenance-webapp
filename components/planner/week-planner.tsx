@@ -12,6 +12,7 @@ import { formatLocalDate } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 import { CapacityBar } from "./capacity-bar"
 import { JobChip } from "./job-chip"
+import { BalancingSuggestionsDialog } from "./balancing-suggestions-dialog"
 import type { Job, WeekDaySnapshot } from "@/types"
 import type { DayWeather } from "@/lib/weather"
 
@@ -333,6 +334,7 @@ export function WeekPlanner({ initialDays, initialUnscheduled, weatherByDate = {
         <span className="text-sm font-medium text-foreground">{rangeLabel}</span>
 
         <div className="ml-auto flex items-center gap-2">
+          <BalancingSuggestionsDialog weekStart={formatLocalDate(weekAnchor)} />
           <Button
             variant="outline"
             size="sm"
