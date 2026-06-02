@@ -20,6 +20,7 @@ import {
   Settings,
   Leaf,
   Smartphone,
+  Send,
 } from "lucide-react"
 
 const navItems = [
@@ -37,6 +38,7 @@ const navItems = [
   { label: "Invoices", href: "/invoices", icon: Receipt, phase: "phase3" },
   { label: "Payments", href: "/payments", icon: CreditCard, phase: "phase3" },
   { label: "Reports", href: "/reports", icon: BarChart3, phase: "phase2" },
+  { label: "Campaigns", href: "/campaigns", icon: Send, phase: "phase4" },
   { label: "Settings", href: "/settings", icon: Settings, phase: "mvp" },
 ]
 

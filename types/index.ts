@@ -40,6 +40,10 @@ export type InvoiceReminderType =
   | "overdue_plus_7"
   | "overdue_notice"
 
+export type JobReminderType = "day_before" | "completion" | "review_request"
+
+export type CampaignStatus = "draft" | "sent"
+
 // ─── Core entities ────────────────────────────────────────────────────────────
 
 export interface Business {
@@ -71,6 +75,7 @@ export interface Client {
   status: ClientStatus
   source: string | null
   notes: string | null
+  marketing_opt_out?: boolean
   created_at: string
 }
 
@@ -174,6 +179,11 @@ export interface Job {
   actual_duration_min: number | null
   price: number
   photo_required: boolean
+  review_token?: string | null
+  review_requested_at?: string | null
+  review_rating?: number | null
+  review_text?: string | null
+  review_submitted_at?: string | null
   created_at: string
   // Joined
   client?: Client
@@ -403,4 +413,25 @@ export interface ActivityItem {
   description: string
   timestamp: string
   meta?: Record<string, string>
+}
+
+export interface Campaign {
+  id: string
+  business_id: string
+  subject: string
+  body: string
+  status: CampaignStatus
+  recipient_count: number
+  sent_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ScheduleSuggestion {
+  jobId: string
+  jobTitle: string
+  currentDate: string
+  suggestedDate: string
+  currentCrewName: string
+  reason: string
 }

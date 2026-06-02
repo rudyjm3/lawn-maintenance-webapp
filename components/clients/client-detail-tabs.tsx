@@ -20,6 +20,7 @@ import {
   Smartphone,
   ArrowDownLeft,
   ArrowUpRight,
+  Star,
 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +29,8 @@ import { AddPropertySheet } from "@/components/properties/add-property-sheet"
 import { AddClientSheet } from "@/components/clients/add-client-sheet"
 import { PropertyServicesPanel } from "@/components/service-catalog/property-services-panel"
 import { type Client, type Property, type Job, type ServiceType, type PropertyService, type Communication, type Estimate, type Invoice } from "@/types"
+
+type ReviewJob = { id: string; title: string | null; service_date: string | null; review_rating: number | null; review_text: string | null; review_submitted_at: string | null }
 import { EstimatesTable } from "@/components/estimates/estimates-table"
 import { InvoicesTable } from "@/components/invoices/invoices-table"
 import { logCommunication } from "@/app/actions/communications"
@@ -773,6 +776,50 @@ function InvoicesTab({ invoices }: { invoices: Invoice[] }) {
   return <InvoicesTable invoices={invoices} />
 }
 
+// ─── Reviews tab ──────────────────────────────────────────────────────────────
+
+function ReviewsTab({ reviews }: { reviews: ReviewJob[] }) {
+  if (reviews.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-border bg-card py-14 text-center">
+        <Star className="h-7 w-7 text-muted-foreground/40" />
+        <p className="text-sm font-medium text-foreground">No reviews yet</p>
+        <p className="text-xs text-muted-foreground">Reviews appear here after clients submit ratings.</p>
+      </div>
+    )
+  }
+  const avg = reviews.reduce((s, r) => s + (r.review_rating ?? 0), 0) / reviews.length
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+        <div className="flex items-center gap-1">
+          {[1,2,3,4,5].map((s) => (
+            <Star key={s} className={`h-4 w-4 ${s <= Math.round(avg) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`} />
+          ))}
+        </div>
+        <span className="text-sm font-semibold">{avg.toFixed(1)}</span>
+        <span className="text-xs text-muted-foreground">avg · {reviews.length} review{reviews.length !== 1 ? "s" : ""}</span>
+      </div>
+      <div className="space-y-3">
+        {reviews.map((r) => (
+          <div key={r.id} className="rounded-xl border border-border bg-card p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                {[1,2,3,4,5].map((s) => (
+                  <Star key={s} className={`h-4 w-4 ${s <= (r.review_rating ?? 0) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`} />
+                ))}
+              </div>
+              <span className="text-xs text-muted-foreground">{r.service_date ?? ""}</span>
+            </div>
+            {r.title && <p className="text-xs text-muted-foreground">{r.title}</p>}
+            {r.review_text && <p className="text-sm text-foreground">{r.review_text}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Main exported component ──────────────────────────────────────────────────
 
 interface ClientDetailTabsProps {
@@ -784,6 +831,7 @@ interface ClientDetailTabsProps {
   communications: Communication[]
   estimates: Estimate[]
   invoices: Invoice[]
+  reviews: ReviewJob[]
   revenueSummary: { earned: number; collected: number; outstanding: number; paymentCount: number; lastPaymentDate: string | null }
 }
 
@@ -796,6 +844,7 @@ export function ClientDetailTabs({
   communications,
   estimates,
   invoices,
+  reviews,
   revenueSummary,
 }: ClientDetailTabsProps) {
   return (
@@ -808,6 +857,7 @@ export function ClientDetailTabs({
           { value: "history", label: `Job History (${jobs.length})` },
           { value: "estimates", label: `Estimates (${estimates.length})` },
           { value: "invoices", label: `Invoices (${invoices.length})` },
+          { value: "reviews", label: `Reviews (${reviews.length})` },
           { value: "activity", label: `Activity (${communications.length})` },
           { value: "notes", label: "Notes" },
         ].map(({ value, label }) => (
@@ -851,6 +901,9 @@ export function ClientDetailTabs({
       </TabsContent>
       <TabsContent value="invoices">
         <InvoicesTab invoices={invoices} />
+      </TabsContent>
+      <TabsContent value="reviews">
+        <ReviewsTab reviews={reviews} />
       </TabsContent>
       <TabsContent value="activity">
         <ActivityTab client={client} communications={communications} />

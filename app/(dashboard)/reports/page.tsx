@@ -1,3 +1,4 @@
+import Link from "next/link"
 import {
   CheckCircle2,
   DollarSign,
@@ -6,6 +7,7 @@ import {
   Clock,
   TrendingUp,
   ArrowRight,
+  Star,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/server"
 import { KpiCard } from "@/components/dashboard/kpi-card"
@@ -113,7 +115,7 @@ export default async function ReportsPage() {
 
   const { start, end, label } = monthRange()
 
-  const [jobsResult, paymentsResult, routesResult, leadsResult] = await Promise.all([
+  const [jobsResult, paymentsResult, routesResult, leadsResult, reviewsResult] = await Promise.all([
     db
       .from("jobs")
       .select("id, status, price, estimated_duration_min, actual_duration_min")
@@ -130,10 +132,18 @@ export default async function ReportsPage() {
       .gte("route_date", start)
       .lte("route_date", end),
     db.from("leads").select("id, status"),
+    db
+      .from("jobs")
+      .select("id, title, service_date, review_rating, review_text, client:clients(name)")
+      .not("review_submitted_at", "is", null)
+      .gte("service_date", start)
+      .lte("service_date", end)
+      .order("review_submitted_at", { ascending: false })
+      .limit(5),
   ])
 
   if (jobsResult.error || paymentsResult.error || routesResult.error) {
-    const msg = jobsResult.error?.message ?? paymentsResult.error?.message ?? routesResult.error?.message
+    const msg = jobsResult.error?.message ?? paymentsResult.error?.message ?? routesResult.error?.message ?? reviewsResult?.error?.message
     return (
       <div className="flex h-full items-center justify-center rounded-lg border border-border bg-card p-6 text-center">
         <p className="text-sm text-destructive">Failed to load report data: {msg}</p>
@@ -227,6 +237,16 @@ export default async function ReportsPage() {
   const wonLeads   = leadStatusCounts["won"] ?? 0
   const lostLeads  = leadStatusCounts["lost"] ?? 0
   const winRate    = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0
+
+  type ReviewRow = { id: string; title: string | null; service_date: string | null; review_rating: number | null; review_text: string | null; client: { name: string } | null }
+  const recentReviews = ((reviewsResult?.data ?? []) as ReviewRow[]).map((r) => ({
+    ...r,
+    client: Array.isArray(r.client) ? (r.client[0] ?? null) : r.client,
+  }))
+  const avgRating =
+    recentReviews.length > 0
+      ? recentReviews.reduce((s, r) => s + (r.review_rating ?? 0), 0) / recentReviews.length
+      : 0
 
   return (
     <div className="space-y-8">
@@ -347,10 +367,19 @@ export default async function ReportsPage() {
 
       {/* ── Actual vs estimated time ── */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-5">
-        <SectionHeader
-          title="Actual vs. Estimated Time"
-          sub={`${jobsWithBothTimes.length} completed job${jobsWithBothTimes.length !== 1 ? "s" : ""} with both estimates recorded this month`}
-        />
+        <div className="flex items-center justify-between">
+          <SectionHeader
+            title="Actual vs. Estimated Time"
+            sub={`${jobsWithBothTimes.length} completed job${jobsWithBothTimes.length !== 1 ? "s" : ""} with both estimates recorded this month`}
+          />
+          <Link
+            href="/reports/time-analysis"
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            Detailed analysis
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
         {jobsWithBothTimes.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             No completed jobs with both estimated and actual durations this month.
@@ -509,6 +538,59 @@ export default async function ReportsPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Recent reviews ── */}
+      <div className="rounded-xl border border-border bg-card p-5 space-y-5">
+        <SectionHeader
+          title="Recent Reviews"
+          sub={`${recentReviews.length} review${recentReviews.length !== 1 ? "s" : ""} submitted this month`}
+        />
+        {recentReviews.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No reviews submitted this month. Reviews appear here after clients rate their service.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Star
+                    key={s}
+                    className={`h-4 w-4 ${s <= Math.round(avgRating) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+                  />
+                ))}
+              </div>
+              <span className="text-sm font-semibold">{avgRating.toFixed(1)}</span>
+              <span className="text-xs text-muted-foreground">avg this month</span>
+            </div>
+            <div className="space-y-3">
+              {recentReviews.map((r) => (
+                <div key={r.id} className="rounded-lg border border-border p-4 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`h-3.5 w-3.5 ${s <= (r.review_rating ?? 0) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {r.client?.name ?? "Client"} · {r.service_date ?? ""}
+                    </span>
+                  </div>
+                  {r.review_text && (
+                    <p className="text-sm text-foreground">{r.review_text}</p>
+                  )}
+                  {r.title && (
+                    <p className="text-xs text-muted-foreground">{r.title}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
