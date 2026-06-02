@@ -1,5 +1,8 @@
 -- Phase 4: Review request automation
 
+-- Extend the job_reminder_type enum before inserting 'review_request' rows
+ALTER TYPE job_reminder_type ADD VALUE IF NOT EXISTS 'review_request';
+
 ALTER TABLE jobs
   ADD COLUMN IF NOT EXISTS review_token         uuid    DEFAULT gen_random_uuid(),
   ADD COLUMN IF NOT EXISTS review_requested_at  timestamptz,

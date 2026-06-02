@@ -115,7 +115,7 @@ export default async function ReportsPage() {
 
   const { start, end, label } = monthRange()
 
-  const [jobsResult, paymentsResult, routesResult, leadsResult, reviewsResult] = await Promise.all([
+  const [jobsResult, paymentsResult, routesResult, leadsResult, reviewStatsResult, reviewsResult] = await Promise.all([
     db
       .from("jobs")
       .select("id, status, price, estimated_duration_min, actual_duration_min")
@@ -132,6 +132,15 @@ export default async function ReportsPage() {
       .gte("route_date", start)
       .lte("route_date", end),
     db.from("leads").select("id, status"),
+    // Aggregate query: all reviews this month for accurate count + avg
+    db
+      .from("jobs")
+      .select("review_rating")
+      .not("review_submitted_at", "is", null)
+      .not("review_rating", "is", null)
+      .gte("service_date", start)
+      .lte("service_date", end),
+    // Display query: 5 most recent reviews with text for the card
     db
       .from("jobs")
       .select("id, title, service_date, review_rating, review_text, client:clients(name)")
@@ -243,9 +252,13 @@ export default async function ReportsPage() {
     ...r,
     client: Array.isArray(r.client) ? (r.client[0] ?? null) : r.client,
   }))
+  // Use the full-month aggregate for accurate count and average (recentReviews is capped at 5)
+  const allRatingsThisMonth = ((reviewStatsResult?.data ?? []) as { review_rating: number | null }[])
+    .map((r) => r.review_rating ?? 0)
+  const totalReviewsThisMonth = allRatingsThisMonth.length
   const avgRating =
-    recentReviews.length > 0
-      ? recentReviews.reduce((s, r) => s + (r.review_rating ?? 0), 0) / recentReviews.length
+    totalReviewsThisMonth > 0
+      ? allRatingsThisMonth.reduce((s, v) => s + v, 0) / totalReviewsThisMonth
       : 0
 
   return (
@@ -544,7 +557,7 @@ export default async function ReportsPage() {
       <div className="rounded-xl border border-border bg-card p-5 space-y-5">
         <SectionHeader
           title="Recent Reviews"
-          sub={`${recentReviews.length} review${recentReviews.length !== 1 ? "s" : ""} submitted this month`}
+          sub={`${totalReviewsThisMonth} review${totalReviewsThisMonth !== 1 ? "s" : ""} submitted this month`}
         />
         {recentReviews.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
