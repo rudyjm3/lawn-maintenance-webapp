@@ -232,13 +232,14 @@ export async function completeJob(
 
   const { data: job, error: jobError } = await db
     .from("jobs")
-    .select("id, client_id, property_id, photo_required")
+    .select("id, client_id, property_id, photo_required, properties(photo_required)")
     .eq("id", jobId)
     .eq("business_id", businessId)
     .single()
   if (jobError || !job) return { success: false, message: "Job not found." }
 
-  if (job.photo_required) {
+  const photoRequired = job.photo_required || (job.properties as { photo_required: boolean } | null)?.photo_required
+  if (photoRequired) {
     const { data: photos } = await db
       .from("property_photos")
       .select("photo_type")
