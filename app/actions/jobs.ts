@@ -195,6 +195,105 @@ export async function updateJobSchedule(
   return { success: true, message: "Job schedule updated." }
 }
 
+const CompleteJobSchema = z.object({
+  jobId:             z.string().uuid(),
+  stopId:            z.string().uuid().nullable().optional(),
+  notes:             z.string().max(2000).optional().or(z.literal("")),
+  actualDurationMin: z.coerce.number().int().min(1),
+  startIso:          z.string().datetime(),
+})
+
+export async function completeJob(
+  values: z.infer<typeof CompleteJobSchema>,
+): Promise<JobActionState> {
+  const parsed = CompleteJobSchema.safeParse(values)
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Validation error" }
+  }
+
+  const supabase = await createSupabaseClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) return { success: false, message: "Not authenticated." }
+
+  const { data: userData, error: userDataError } = await db
+    .from("users")
+    .select("id, business_id")
+    .eq("auth_user_id", user.id)
+    .single()
+  if (userDataError || !userData) return { success: false, message: "Could not load user profile." }
+
+  const businessId: string = userData.business_id
+  const userId: string = userData.id
+
+  const { jobId, stopId, notes, actualDurationMin, startIso } = parsed.data
+
+  const { data: job, error: jobError } = await db
+    .from("jobs")
+    .select("id, client_id, property_id, photo_required")
+    .eq("id", jobId)
+    .eq("business_id", businessId)
+    .single()
+  if (jobError || !job) return { success: false, message: "Job not found." }
+
+  if (job.photo_required) {
+    const { data: photos } = await db
+      .from("property_photos")
+      .select("photo_type")
+      .eq("job_id", jobId)
+      .eq("property_id", job.property_id)
+
+    const types = new Set<string>((photos ?? []).map((p: { photo_type: string }) => p.photo_type))
+    if (!types.has("before") || !types.has("after")) {
+      return { success: false, message: "Before and after photos are required to complete this job." }
+    }
+  }
+
+  const now = new Date().toISOString()
+
+  const { error: jobUpdateError } = await db
+    .from("jobs")
+    .update({ status: "completed", actual_duration_min: actualDurationMin })
+    .eq("id", jobId)
+    .eq("business_id", businessId)
+  if (jobUpdateError) return { success: false, message: jobUpdateError.message }
+
+  if (stopId) {
+    await db
+      .from("route_stops")
+      .update({ status: "completed", actual_finish: now })
+      .eq("id", stopId)
+      .eq("job_id", jobId)
+  }
+
+  await db.from("time_logs").insert({
+    job_id:       jobId,
+    user_id:      userId,
+    start_time:   startIso,
+    end_time:     now,
+    duration_min: actualDurationMin,
+    notes:        notes || null,
+    business_id:  businessId,
+  })
+
+  await db.from("activity_logs").insert({
+    entity_type: "job",
+    entity_id:   jobId,
+    action_type: "completed",
+    user_id:     userId,
+    business_id: businessId,
+    metadata:    { notes: notes || null, duration_min: actualDurationMin },
+  })
+
+  revalidatePath("/jobs")
+  revalidatePath("/schedule")
+  revalidatePath("/dashboard")
+  revalidatePath(`/clients/${job.client_id}`)
+  return { success: true, message: "Job completed." }
+}
+
 export async function rescheduleJobsForDate(
   fromDate: string,
   toDate: string,
