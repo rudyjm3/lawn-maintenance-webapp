@@ -20,6 +20,7 @@ const ServiceTypeSchema = z.object({
   default_price: z.coerce.number().min(0, "Price must be 0 or more"),
   is_recurring: z.boolean().default(false),
   is_seasonal: z.boolean().default(false),
+  default_frequency_type: z.enum(["weekly", "biweekly", "monthly", "custom"]).nullable().optional(),
 })
 
 const PropertyServiceSchema = z.object({
@@ -109,6 +110,7 @@ export async function saveServiceType(
     default_price: fields.default_price,
     is_recurring: fields.is_recurring,
     is_seasonal: fields.is_seasonal,
+    default_frequency_type: fields.default_frequency_type ?? null,
   }
 
   if (id) {
@@ -181,8 +183,31 @@ export async function savePropertyService(
   }
 
   if (id) {
+    // Check if the service type is changing so we can sync the recurrence rule frequency
+    const { data: existing } = await db
+      .from("property_services")
+      .select("service_type_id")
+      .eq("id", id)
+      .single()
+
     const { error } = await db.from("property_services").update(row).eq("id", id)
     if (error) return { success: false, message: error.message }
+
+    const serviceTypeChanged = existing && existing.service_type_id !== row.service_type_id
+    if (serviceTypeChanged) {
+      const { data: newType } = await db
+        .from("service_types")
+        .select("default_frequency_type")
+        .eq("id", row.service_type_id)
+        .single()
+
+      if (newType?.default_frequency_type) {
+        await db
+          .from("recurrence_rules")
+          .update({ frequency_type: newType.default_frequency_type })
+          .eq("property_service_id", id)
+      }
+    }
 
     await generateJobsForBusinessLookahead(db, businessId, {
       startDate: todayUtc(),

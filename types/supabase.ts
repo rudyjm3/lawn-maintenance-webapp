@@ -1276,6 +1276,7 @@ export type Database = {
           created_at: string
           default_duration_min: number
           default_price: number
+          default_frequency_type: string | null
           id: string
           is_recurring: boolean
           is_seasonal: boolean
@@ -1287,6 +1288,7 @@ export type Database = {
           created_at?: string
           default_duration_min?: number
           default_price?: number
+          default_frequency_type?: string | null
           id?: string
           is_recurring?: boolean
           is_seasonal?: boolean
@@ -1298,6 +1300,7 @@ export type Database = {
           created_at?: string
           default_duration_min?: number
           default_price?: number
+          default_frequency_type?: string | null
           id?: string
           is_recurring?: boolean
           is_seasonal?: boolean

@@ -104,6 +104,7 @@ export interface ServiceType {
   default_price: number
   is_recurring: boolean
   is_seasonal: boolean
+  default_frequency_type: FrequencyType | null
 }
 
 export interface ServiceTemplate {

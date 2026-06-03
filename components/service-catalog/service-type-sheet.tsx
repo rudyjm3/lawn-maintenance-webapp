@@ -17,8 +17,15 @@ import {
   SheetFooter,
   SheetClose,
 } from "@/components/ui/sheet"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { saveServiceType } from "@/app/actions/service-catalog"
-import type { ServiceType } from "@/types"
+import type { ServiceType, FrequencyType } from "@/types"
 
 interface FormValues {
   name: string
@@ -26,6 +33,7 @@ interface FormValues {
   default_price: string
   is_recurring: boolean
   is_seasonal: boolean
+  default_frequency_type: FrequencyType | ""
 }
 
 interface ServiceTypeSheetProps {
@@ -51,6 +59,7 @@ export function ServiceTypeSheet({ open, onOpenChange, serviceType }: ServiceTyp
       default_price: "0",
       is_recurring: false,
       is_seasonal: false,
+      default_frequency_type: "",
     },
   })
 
@@ -67,9 +76,10 @@ export function ServiceTypeSheet({ open, onOpenChange, serviceType }: ServiceTyp
           default_price: String(serviceType.default_price),
           is_recurring: serviceType.is_recurring,
           is_seasonal: serviceType.is_seasonal,
+          default_frequency_type: serviceType.default_frequency_type ?? "",
         })
       } else {
-        reset({ name: "", default_duration_min: "60", default_price: "0", is_recurring: false, is_seasonal: false })
+        reset({ name: "", default_duration_min: "60", default_price: "0", is_recurring: false, is_seasonal: false, default_frequency_type: "" })
       }
     }
   }, [open, serviceType, reset])
@@ -83,6 +93,7 @@ export function ServiceTypeSheet({ open, onOpenChange, serviceType }: ServiceTyp
       default_price: Number(data.default_price),
       is_recurring: data.is_recurring,
       is_seasonal: data.is_seasonal,
+      default_frequency_type: data.default_frequency_type || null,
     })
     setIsSubmitting(false)
 
@@ -167,9 +178,36 @@ export function ServiceTypeSheet({ open, onOpenChange, serviceType }: ServiceTyp
               <Switch
                 id="is_recurring"
                 checked={isRecurring}
-                onCheckedChange={(v) => setValue("is_recurring", v)}
+                onCheckedChange={(v) => {
+                  setValue("is_recurring", v)
+                  if (!v) setValue("default_frequency_type", "")
+                }}
               />
             </div>
+
+            {isRecurring && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Default frequency</Label>
+                <Select
+                  key={serviceType?.id ?? "new"}
+                  defaultValue={serviceType?.default_frequency_type ?? ""}
+                  onValueChange={(v) => setValue("default_frequency_type", v as FrequencyType | "")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No default (let user choose)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="biweekly">Biweekly (every 2 weeks)</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom interval</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  When set, the schedule dialog locks to this frequency for this service type.
+                </p>
+              </div>
+            )}
             <div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
               <div className="flex flex-col gap-0.5">
                 <Label htmlFor="is_seasonal" className="text-sm font-medium">
