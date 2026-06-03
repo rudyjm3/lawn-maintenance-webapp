@@ -26,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AddPropertySheet } from "@/components/properties/add-property-sheet"
+import { PropertyPhotoGallery } from "@/components/properties/property-photo-gallery"
 import { AddClientSheet } from "@/components/clients/add-client-sheet"
 import { PropertyServicesPanel } from "@/components/service-catalog/property-services-panel"
 import { type Client, type Property, type Job, type ServiceType, type PropertyService, type Communication, type Estimate, type Invoice } from "@/types"
@@ -357,6 +358,10 @@ function PropertiesTab({
                     serviceTypes={serviceTypes}
                   />
                 )}
+
+                <div className="border-t border-border pt-3">
+                  <PropertyPhotoGallery propertyId={p.id} />
+                </div>
               </div>
             )
           })

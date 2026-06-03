@@ -15,7 +15,7 @@ type PropertyServiceForGeneration = {
   custom_price: number | null
   duration_min: number | null
   is_active: boolean
-  property?: { id: string; client_id: string } | null
+  property?: { id: string; client_id: string; photo_required: boolean } | null
   service_type?: ServiceType | null
   recurrence_rules?: RecurrenceRuleWithExceptions[] | null
 }
@@ -127,7 +127,7 @@ export async function generateJobsForBusinessLookahead(
 
   const { data: propertyServices, error: propertyServicesError } = await supabase
     .from("property_services")
-    .select("*, property:properties(id, client_id), service_type:service_types(*), recurrence_rules(*, schedule_exceptions(*))")
+    .select("*, property:properties(id, client_id, photo_required), service_type:service_types(*), recurrence_rules(*, schedule_exceptions(*))")
     .eq("business_id", businessId)
     .eq("is_active", true)
 
@@ -198,7 +198,7 @@ export async function generateJobsForBusinessLookahead(
             propertyService.duration_min ?? serviceType.default_duration_min,
           actual_duration_min: null,
           price: propertyService.custom_price ?? serviceType.default_price,
-          photo_required: false,
+          photo_required: property.photo_required ?? false,
         })
       }
     }

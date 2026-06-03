@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
-import { MapPin, Pencil } from "lucide-react"
+import { Camera, MapPin, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -35,6 +36,7 @@ interface PropertyFormValues {
   access_notes: string
   pet_notes: string
   is_commercial: string
+  photo_required: boolean
 }
 
 interface AddPropertySheetProps {
@@ -53,6 +55,7 @@ export function AddPropertySheet({
   property,
 }: AddPropertySheetProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [photoRequired, setPhotoRequired] = useState(false)
   const isEditing = !!property
 
   const { register, handleSubmit, reset, setValue } =
@@ -60,12 +63,15 @@ export function AddPropertySheet({
       defaultValues: {
         client_id: defaultClientId ?? "",
         is_commercial: "false",
+        photo_required: false,
       },
     })
 
   useEffect(() => {
     if (open) {
       if (property) {
+        const pr = property.photo_required ?? false
+        setPhotoRequired(pr)
         reset({
           client_id: property.client_id,
           address: property.address,
@@ -74,8 +80,10 @@ export function AddPropertySheet({
           access_notes: property.access_notes ?? "",
           pet_notes: property.pet_notes ?? "",
           is_commercial: property.is_commercial ? "true" : "false",
+          photo_required: pr,
         })
       } else {
+        setPhotoRequired(false)
         reset({
           client_id: defaultClientId ?? "",
           address: "",
@@ -84,6 +92,7 @@ export function AddPropertySheet({
           access_notes: "",
           pet_notes: "",
           is_commercial: "false",
+          photo_required: false,
         })
       }
     }
@@ -100,6 +109,7 @@ export function AddPropertySheet({
       access_notes: data.access_notes,
       pet_notes: data.pet_notes,
       is_commercial: data.is_commercial === "true",
+      photo_required: photoRequired,
     })
     setIsSubmitting(false)
 
@@ -223,6 +233,29 @@ export function AddPropertySheet({
               id="pet_notes"
               placeholder="Small dog named Biscuit — keep gate closed"
               {...register("pet_notes")}
+            />
+          </div>
+
+          {/* Photo required */}
+          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label htmlFor="photo_required" className="cursor-pointer text-sm">
+                  Require before &amp; after photos
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Crew must upload photos to complete any job at this property
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="photo_required"
+              checked={photoRequired}
+              onCheckedChange={(checked) => {
+                setPhotoRequired(checked)
+                setValue("photo_required", checked)
+              }}
             />
           </div>
         </form>

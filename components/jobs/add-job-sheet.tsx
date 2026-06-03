@@ -233,7 +233,14 @@ export function AddJobSheet({
                 </Label>
                 <Select
                   key={`${selectedClientId || "all"}-property`}
-                  onValueChange={(value) => setValue("property_id", value)}
+                  onValueChange={(value) => {
+                    setValue("property_id", value)
+                    const prop = properties.find((p) => p.id === value)
+                    if (prop?.photo_required !== undefined) {
+                      setPhotoRequired(prop.photo_required)
+                      setValue("photo_required", prop.photo_required)
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue
