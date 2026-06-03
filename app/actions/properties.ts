@@ -119,6 +119,7 @@ const PropertySchema = z.object({
   access_notes: z.string().optional(),
   pet_notes: z.string().optional(),
   is_commercial: z.boolean().default(false),
+  photo_required: z.boolean().default(false),
 })
 
 export type PropertyFormValues = z.infer<typeof PropertySchema>
@@ -271,6 +272,7 @@ export async function saveProperty(values: PropertyFormValues): Promise<Property
     access_notes: fields.access_notes?.trim() || null,
     pet_notes: fields.pet_notes?.trim() || null,
     is_commercial: fields.is_commercial,
+    photo_required: fields.photo_required,
   }
   const coordinateFields = coordinates
     ? { lat: coordinates.lat, lng: coordinates.lng }
