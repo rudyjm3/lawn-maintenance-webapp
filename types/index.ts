@@ -255,6 +255,7 @@ export interface ServiceZone {
   name: string
   color: string
   description: string | null
+  polygon_geojson: [number, number][] | null  // GeoJSON outer ring [[lng,lat],...]
 }
 
 export interface Lead {
