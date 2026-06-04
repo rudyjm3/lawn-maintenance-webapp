@@ -12,7 +12,8 @@ export interface RecurrenceRuleInput {
 export function computeOccurrences(
   rule: RecurrenceRuleInput,
   count = 10,
-  exceptions: { original_date: string; exception_type: string }[] = []
+  exceptions: { original_date: string; exception_type: string }[] = [],
+  rangeStart?: string,
 ): Date[] {
   const results: Date[] = []
   const skippedDates = new Set(
@@ -30,9 +31,6 @@ export function computeOccurrences(
     }
   }
 
-  const endDate = rule.end_date ? parseUTC(rule.end_date) : null
-  const hardLimit = new Date(Date.UTC(cursor.getUTCFullYear() + 3, 0, 1))
-
   const stepDays =
     rule.frequency_type === "weekly"
       ? 7
@@ -41,6 +39,29 @@ export function computeOccurrences(
         : rule.frequency_type === "custom"
           ? Math.max(1, rule.interval) * 7
           : null // monthly handled separately
+
+  // Fast-forward cursor to just before rangeStart to avoid iterating every
+  // past occurrence for long-running rules.
+  if (rangeStart) {
+    const rangeStartDate = parseUTC(rangeStart)
+    if (cursor < rangeStartDate) {
+      if (stepDays !== null) {
+        const msGap = rangeStartDate.getTime() - cursor.getTime()
+        const stepsToSkip = Math.floor(msGap / (stepDays * 86_400_000))
+        if (stepsToSkip > 1) {
+          cursor = addDays(cursor, (stepsToSkip - 1) * stepDays)
+        }
+      } else {
+        // Monthly: step forward until the next advance would overshoot rangeStart
+        while (addOneMonth(cursor, rule.day_of_week) <= rangeStartDate) {
+          cursor = addOneMonth(cursor, rule.day_of_week)
+        }
+      }
+    }
+  }
+
+  const endDate = rule.end_date ? parseUTC(rule.end_date) : null
+  const hardLimit = new Date(Date.UTC(cursor.getUTCFullYear() + 3, 0, 1))
 
   while (results.length < count && cursor < hardLimit) {
     if (endDate && cursor > endDate) break

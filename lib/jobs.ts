@@ -105,6 +105,7 @@ function buildOccurrenceDates(
     },
     64,
     ruleExceptions,
+    startDate,
   )
     .map((date) => formatUtcDate(date))
     .filter((date) => date >= startDate && date <= endDate)
