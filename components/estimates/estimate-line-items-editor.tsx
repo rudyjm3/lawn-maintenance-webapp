@@ -12,14 +12,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { type ServiceType } from "@/types"
+import { type ServiceType, type PricingSettings } from "@/types"
 import { PriceRecommendationEngine } from "@/components/estimates/price-recommendation-engine"
 
 interface Props {
   serviceTypes: ServiceType[]
+  pricingSettings?: PricingSettings
 }
 
-export function EstimateLineItemsEditor({ serviceTypes }: Props) {
+export function EstimateLineItemsEditor({ serviceTypes, pricingSettings }: Props) {
   const { register, control, watch, setValue } = useFormContext()
   const { fields, append, remove, update } = useFieldArray({ control, name: "items" })
 
@@ -128,6 +129,7 @@ export function EstimateLineItemsEditor({ serviceTypes }: Props) {
           Add Line Item
         </Button>
         <PriceRecommendationEngine
+          pricingSettings={pricingSettings}
           onApply={(price, description, durationMin) => {
             const newItem = { service_type_id: null, description, qty: 1, unit_price: price, duration_min: durationMin }
             const onlyBlankRow = fields.length === 1 && !items[0]?.description && !Number(items[0]?.unit_price)

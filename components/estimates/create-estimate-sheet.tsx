@@ -26,14 +26,15 @@ import {
 } from "@/components/ui/select"
 import { EstimateLineItemsEditor } from "@/components/estimates/estimate-line-items-editor"
 import { saveEstimate, type EstimateFormValues } from "@/app/actions/estimates"
-import { type Client, type ServiceType } from "@/types"
+import { type Client, type ServiceType, type PricingSettings } from "@/types"
 
 interface Props {
   clients: Client[]
   serviceTypes: ServiceType[]
+  pricingSettings?: PricingSettings
 }
 
-export function CreateEstimateSheet({ clients, serviceTypes }: Props) {
+export function CreateEstimateSheet({ clients, serviceTypes, pricingSettings }: Props) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -131,7 +132,7 @@ export function CreateEstimateSheet({ clients, serviceTypes }: Props) {
             {/* Line items */}
             <div className="space-y-2">
               <Label>Line Items *</Label>
-              <EstimateLineItemsEditor serviceTypes={serviceTypes} />
+              <EstimateLineItemsEditor serviceTypes={serviceTypes} pricingSettings={pricingSettings} />
             </div>
 
             {/* Totals */}
