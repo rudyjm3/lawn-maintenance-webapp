@@ -1,4 +1,4 @@
-import { LeadsTable } from "@/components/leads/leads-table"
+import { LeadsView } from "@/components/leads/leads-view"
 import { createClient } from "@/lib/supabase/server"
 import type { Lead } from "@/types"
 
@@ -25,7 +25,7 @@ export default async function LeadsPage() {
         </p>
       </div>
 
-      <LeadsTable leads={leads} />
+      <LeadsView leads={leads} />
     </div>
   )
 }

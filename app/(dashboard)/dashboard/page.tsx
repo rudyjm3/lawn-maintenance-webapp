@@ -16,9 +16,11 @@ import { KpiCard } from "@/components/dashboard/kpi-card"
 import { WeekSnapshot } from "@/components/dashboard/week-snapshot"
 import { RoutePreview } from "@/components/dashboard/route-preview"
 import { ActivityFeed } from "@/components/dashboard/activity-feed"
+import { WeatherAlertBanner, type AffectedDay } from "@/components/dashboard/weather-alert-banner"
 import { Button } from "@/components/ui/button"
 import { addUtcDays, formatLocalDate, formatUtcDate, startOfWeekUtc } from "@/lib/dates"
 import { buildWeekSnapshot } from "@/lib/jobs"
+import { fetchWeekForecast } from "@/lib/weather"
 import { createClient } from "@/lib/supabase/server"
 import type { ActivityItem, Job, Route, RouteStop } from "@/types"
 
@@ -81,6 +83,7 @@ export default async function DashboardPage() {
     autopayCountResult,
     autoInvoicesCountResult,
     remindersCountResult,
+    geoPropsResult,
   ] = await Promise.all([
     db.from("clients").select("id", { count: "exact", head: true }),
     db.from("properties").select("id", { count: "exact", head: true }),
@@ -154,6 +157,12 @@ export default async function DashboardPage() {
       .select("id", { count: "exact", head: true })
       .gte("sent_at", `${today}T00:00:00.000Z`)
       .lt("sent_at", `${today}T23:59:59.999Z`),
+    db
+      .from("properties")
+      .select("lat, lng")
+      .not("lat", "is", null)
+      .not("lng", "is", null)
+      .limit(50),
   ])
 
   const clientsCount = clientsCountResult.count ?? 0
@@ -181,6 +190,29 @@ export default async function DashboardPage() {
   const activity = buildActivity(recentClients)
   const overbookedDays = week.filter((day) => day.isOverbooked)
   const todaysCompleted = todayJobs.filter((job) => job.status === "completed").length
+
+  const geoProps = (geoPropsResult.data ?? []) as { lat: number; lng: number }[]
+  let weatherAlertDays: AffectedDay[] = []
+  if (geoProps.length > 0) {
+    const avgLat = geoProps.reduce((s, p) => s + p.lat, 0) / geoProps.length
+    const avgLng = geoProps.reduce((s, p) => s + p.lng, 0) / geoProps.length
+    const forecast = await fetchWeekForecast(avgLat, avgLng)
+    weatherAlertDays = forecast.slice(0, 7)
+      .filter((d) => d.severity === "rain" || d.severity === "severe")
+      .map((d) => ({
+        date: d.date,
+        label: new Date(`${d.date}T12:00:00`).toLocaleDateString("en-US", {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        }),
+        jobCount: weekJobs.filter((j) => j.service_date === d.date).length,
+        severity: d.severity as "rain" | "severe",
+        icon: d.icon,
+        weatherLabel: d.label,
+      }))
+      .filter((d) => d.jobCount > 0)
+  }
 
   return (
     <div className="space-y-6">
@@ -248,6 +280,8 @@ export default async function DashboardPage() {
           icon={DollarSign}
         />
       </div>
+
+      <WeatherAlertBanner affectedDays={weatherAlertDays} />
 
       {(overbookedDays.length > 0 || unassignedCount > 0 || overdueCount > 0 || openLeadsCount > 0) && (
         <div className="flex flex-col gap-3 sm:flex-row">
