@@ -3,76 +3,70 @@
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
-import { z } from "zod"
 
 export type ZoneActionState =
-  | { success: true; message: string }
+  | { success: true; message: string; id?: string }
   | { success: false; message: string }
 
-const CoordPair = z.tuple([z.number(), z.number()])
+// ─── Create zone ──────────────────────────────────────────────────────────────
 
-const ZoneSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  color: z.string().min(1, "Color is required"),
-  description: z.string().optional().nullable(),
-  polygon_geojson: z.array(CoordPair).optional().nullable(),
-})
-
-const ZoneUpdateSchema = ZoneSchema.extend({
-  id: z.string().uuid(),
-})
-
-export async function createZone(
-  values: z.infer<typeof ZoneSchema>,
-): Promise<ZoneActionState> {
-  const parsed = ZoneSchema.safeParse(values)
-  if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0]?.message ?? "Validation error" }
-  }
-
+export async function createZone(data: {
+  name: string
+  color: string
+  description?: string | null
+  coordinates?: [number, number][] | null
+}): Promise<ZoneActionState> {
   const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
-  const { error } = await db.from("service_zones").insert({
-    business_id: businessId,
-    name: parsed.data.name,
-    color: parsed.data.color,
-    description: parsed.data.description ?? null,
-    polygon_geojson: parsed.data.polygon_geojson ?? null,
-  })
+  const { data: row, error } = await db
+    .from("service_zones")
+    .insert({
+      business_id: businessId,
+      name: data.name.trim(),
+      color: data.color,
+      description: data.description ?? null,
+      coordinates: data.coordinates ?? null,
+    })
+    .select("id")
+    .single()
 
   if (error) return { success: false, message: error.message }
 
   revalidatePath("/zones")
-  return { success: true, message: "Zone created." }
+  return { success: true, message: "Zone created.", id: row.id }
 }
 
-export async function updateZone(
-  values: z.infer<typeof ZoneUpdateSchema>,
-): Promise<ZoneActionState> {
-  const parsed = ZoneUpdateSchema.safeParse(values)
-  if (!parsed.success) {
-    return { success: false, message: parsed.error.issues[0]?.message ?? "Validation error" }
-  }
+// ─── Update zone ──────────────────────────────────────────────────────────────
 
+export async function updateZone(
+  id: string,
+  data: {
+    name?: string
+    color?: string
+    description?: string | null
+    coordinates?: [number, number][] | null
+  },
+): Promise<ZoneActionState> {
   const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
+  const payload: Record<string, unknown> = {}
+  if (data.name !== undefined) payload.name = data.name.trim()
+  if (data.color !== undefined) payload.color = data.color
+  if ("description" in data) payload.description = data.description ?? null
+  if ("coordinates" in data) payload.coordinates = data.coordinates ?? null
+
   const { error } = await db
     .from("service_zones")
-    .update({
-      name: parsed.data.name,
-      color: parsed.data.color,
-      description: parsed.data.description ?? null,
-      polygon_geojson: parsed.data.polygon_geojson ?? null,
-    })
-    .eq("id", parsed.data.id)
+    .update(payload)
+    .eq("id", id)
     .eq("business_id", businessId)
 
   if (error) return { success: false, message: error.message }
@@ -81,14 +75,14 @@ export async function updateZone(
   return { success: true, message: "Zone updated." }
 }
 
+// ─── Delete zone ──────────────────────────────────────────────────────────────
+
 export async function deleteZone(id: string): Promise<ZoneActionState> {
   const supabase = await createClient()
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
-  const { error } = await db
+  const { error } = await supabase
     .from("service_zones")
     .delete()
     .eq("id", id)
@@ -97,5 +91,31 @@ export async function deleteZone(id: string): Promise<ZoneActionState> {
   if (error) return { success: false, message: error.message }
 
   revalidatePath("/zones")
+  revalidatePath("/properties")
   return { success: true, message: "Zone deleted." }
+}
+
+// ─── Assign property to zone ──────────────────────────────────────────────────
+
+export async function assignPropertyZone(
+  propertyId: string,
+  zoneId: string | null,
+): Promise<ZoneActionState> {
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
+
+  const { error } = await db
+    .from("properties")
+    .update({ zone_id: zoneId })
+    .eq("id", propertyId)
+    .eq("business_id", businessId)
+
+  if (error) return { success: false, message: error.message }
+
+  revalidatePath("/zones")
+  revalidatePath("/properties")
+  return { success: true, message: zoneId ? "Property assigned to zone." : "Zone assignment cleared." }
 }

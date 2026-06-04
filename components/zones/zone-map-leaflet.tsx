@@ -1,188 +1,254 @@
 "use client"
 
-import { useEffect, useRef } from "react"
-import { MapContainer, TileLayer, useMap } from "react-leaflet"
+import { useEffect, useRef, useState } from "react"
+import { MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet"
 import "leaflet/dist/leaflet.css"
 import L from "leaflet"
-import type { ServiceZone } from "@/types"
+import type { ServiceZone, Property } from "@/types"
 
-// Coordinate conversion helpers
-const toLeaflet = ([lng, lat]: [number, number]): [number, number] => [lat, lng]
-const toGeoJSON = ([lat, lng]: [number, number]): [number, number] => [lng, lat]
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ZoneMapLeafletProps {
-  center: [number, number]
-  existingZones: ServiceZone[]
-  drawnPolygon: [number, number][] | null  // [lat, lng] Leaflet order
-  isDrawing: boolean
-  onPolygonChange: (polygon: [number, number][]) => void
-  onDrawingStateChange: (isDrawing: boolean) => void
+export interface ZoneMapProps {
+  zones: ServiceZone[]
+  properties: Property[]
+  selectedZoneId: string | null
+  drawingZoneId: string | null
+  onPolygonComplete: (zoneId: string, coords: [number, number][]) => void
+  onAssignProperty: (propertyId: string, zoneId: string | null) => void
 }
 
-function ExistingZonePolygons({ zones }: { zones: ServiceZone[] }) {
+// ─── Polygon overlays ─────────────────────────────────────────────────────────
+
+function ZonePolygons({
+  zones,
+  selectedZoneId,
+}: {
+  zones: ServiceZone[]
+  selectedZoneId: string | null
+}) {
   const map = useMap()
+  const layersRef = useRef<L.Polygon[]>([])
 
   useEffect(() => {
-    const layers: L.Polygon[] = zones
-      .filter((z) => z.polygon_geojson && z.polygon_geojson.length >= 3)
-      .map((z) => {
-        const latLngs = (z.polygon_geojson as [number, number][]).map(toLeaflet)
-        const poly = L.polygon(latLngs, {
-          fillColor: z.color,
-          fillOpacity: 0.25,
-          color: z.color,
-          weight: 2,
-        })
-        poly.bindTooltip(z.name, { permanent: false, direction: "center" })
-        poly.addTo(map)
-        return poly
+    layersRef.current.forEach((l) => map.removeLayer(l))
+    layersRef.current = []
+
+    for (const zone of zones) {
+      if (!zone.coordinates || zone.coordinates.length < 3) continue
+      const isSelected = zone.id === selectedZoneId
+      const poly = L.polygon(zone.coordinates as L.LatLngExpression[], {
+        color: zone.color,
+        fillColor: zone.color,
+        fillOpacity: isSelected ? 0.35 : 0.2,
+        weight: isSelected ? 2.5 : 1.5,
+        dashArray: undefined,
       })
+      poly.bindTooltip(zone.name, { sticky: true })
+      poly.addTo(map)
+      layersRef.current.push(poly)
+    }
 
     return () => {
-      layers.forEach((l) => map.removeLayer(l))
-    }
-  }, [map, zones])
-
-  return null
-}
-
-function DrawnPolygonLayer({
-  polygon,
-  isDrawing,
-}: {
-  polygon: [number, number][] | null
-  isDrawing: boolean
-}) {
-  const map = useMap()
-  const polyRef = useRef<L.Polygon | null>(null)
-
-  useEffect(() => {
-    if (isDrawing) return // Don't render finalized polygon while actively drawing
-    if (polyRef.current) {
-      map.removeLayer(polyRef.current)
-      polyRef.current = null
-    }
-    if (polygon && polygon.length >= 3) {
-      polyRef.current = L.polygon(polygon, {
-        fillColor: "#16a34a",
-        fillOpacity: 0.2,
-        color: "#16a34a",
-        weight: 2,
-        dashArray: "4 4",
-      }).addTo(map)
-    }
-    return () => {
-      if (polyRef.current) {
-        map.removeLayer(polyRef.current)
-        polyRef.current = null
-      }
-    }
-  }, [map, polygon, isDrawing])
-
-  return null
-}
-
-function PolygonDrawer({
-  isDrawing,
-  onPolygonChange,
-  onDrawingStateChange,
-}: {
-  isDrawing: boolean
-  onPolygonChange: (polygon: [number, number][]) => void
-  onDrawingStateChange: (isDrawing: boolean) => void
-}) {
-  const map = useMap()
-  const verticesRef = useRef<[number, number][]>([])
-  const markersRef = useRef<L.CircleMarker[]>([])
-  const polylineRef = useRef<L.Polyline | null>(null)
-
-  function clearTemp() {
-    markersRef.current.forEach((m) => map.removeLayer(m))
-    markersRef.current = []
-    if (polylineRef.current) {
-      map.removeLayer(polylineRef.current)
-      polylineRef.current = null
-    }
-    verticesRef.current = []
-  }
-
-  function updatePolyline(vertices: [number, number][]) {
-    if (polylineRef.current) map.removeLayer(polylineRef.current)
-    if (vertices.length >= 2) {
-      polylineRef.current = L.polyline(vertices, {
-        color: "#16a34a",
-        weight: 2,
-        dashArray: "4 4",
-      }).addTo(map)
-    }
-  }
-
-  useEffect(() => {
-    if (!isDrawing) {
-      clearTemp()
-      map.getContainer().style.cursor = ""
-      map.doubleClickZoom.enable()
-      return
-    }
-
-    map.getContainer().style.cursor = "crosshair"
-    map.doubleClickZoom.disable()
-
-    function handleClick(e: L.LeafletMouseEvent) {
-      const latlng: [number, number] = [e.latlng.lat, e.latlng.lng]
-      verticesRef.current = [...verticesRef.current, latlng]
-
-      const dot = L.circleMarker(latlng, {
-        radius: 5,
-        fillColor: "#16a34a",
-        fillOpacity: 1,
-        color: "#fff",
-        weight: 1.5,
-      }).addTo(map)
-      markersRef.current = [...markersRef.current, dot]
-
-      updatePolyline(verticesRef.current)
-    }
-
-    function handleDblClick(e: L.LeafletMouseEvent) {
-      L.DomEvent.stop(e)
-      if (verticesRef.current.length >= 3) {
-        const finalPoly = [...verticesRef.current]
-        clearTemp()
-        onPolygonChange(finalPoly)
-        onDrawingStateChange(false)
-      }
-    }
-
-    map.on("click", handleClick)
-    map.on("dblclick", handleDblClick)
-
-    return () => {
-      map.off("click", handleClick)
-      map.off("dblclick", handleDblClick)
-      map.getContainer().style.cursor = ""
-      map.doubleClickZoom.enable()
-      clearTemp()
+      layersRef.current.forEach((l) => map.removeLayer(l))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, isDrawing])
+  }, [map, zones, selectedZoneId])
 
   return null
 }
 
-export default function ZoneMapLeaflet({
-  center,
-  existingZones,
-  drawnPolygon,
-  isDrawing,
-  onPolygonChange,
-  onDrawingStateChange,
-}: ZoneMapLeafletProps) {
+// ─── Property markers ─────────────────────────────────────────────────────────
+
+function PropertyMarkers({
+  properties,
+  zones,
+  selectedZoneId,
+  onAssignProperty,
+}: {
+  properties: Property[]
+  zones: ServiceZone[]
+  selectedZoneId: string | null
+  onAssignProperty: (propertyId: string, zoneId: string | null) => void
+}) {
+  const map = useMap()
+  const markersRef = useRef<L.CircleMarker[]>([])
+  const zoneColorMap = Object.fromEntries(zones.map((z) => [z.id, z.color]))
+
+  useEffect(() => {
+    markersRef.current.forEach((m) => map.removeLayer(m))
+    markersRef.current = []
+
+    const mapped = properties.filter((p) => p.lat != null && p.lng != null)
+    for (const prop of mapped) {
+      const color = prop.zone_id ? (zoneColorMap[prop.zone_id] ?? "#6b7280") : "#6b7280"
+      const marker = L.circleMarker([prop.lat!, prop.lng!], {
+        radius: 7,
+        color: "#fff",
+        weight: 1.5,
+        fillColor: color,
+        fillOpacity: 0.9,
+      })
+      marker.bindTooltip(
+        `<strong>${prop.address}</strong>${prop.client ? `<br/>${prop.client.name}` : ""}`,
+        { direction: "top", offset: [0, -10] },
+      )
+      marker.on("click", () => {
+        if (selectedZoneId) {
+          const newZoneId = prop.zone_id === selectedZoneId ? null : selectedZoneId
+          onAssignProperty(prop.id, newZoneId)
+        }
+      })
+      marker.addTo(map)
+      markersRef.current.push(marker)
+    }
+
+    return () => {
+      markersRef.current.forEach((m) => map.removeLayer(m))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, properties, zones, selectedZoneId])
+
+  return null
+}
+
+// ─── Drawing mode ─────────────────────────────────────────────────────────────
+
+function DrawingLayer({
+  drawingZoneId,
+  zone,
+  onVertexAdded,
+  vertices,
+}: {
+  drawingZoneId: string
+  zone: ServiceZone | undefined
+  onVertexAdded: (lat: number, lng: number) => void
+  vertices: [number, number][]
+}) {
+  const map = useMap()
+  const previewRef = useRef<L.Polyline | null>(null)
+  const dotRefs = useRef<L.CircleMarker[]>([])
+
+  useMapEvents({
+    click(e) {
+      onVertexAdded(e.latlng.lat, e.latlng.lng)
+    },
+  })
+
+  useEffect(() => {
+    if (previewRef.current) map.removeLayer(previewRef.current)
+    dotRefs.current.forEach((d) => map.removeLayer(d))
+    dotRefs.current = []
+
+    if (vertices.length === 0) return
+
+    const color = zone?.color ?? "#22c55e"
+
+    // Draw vertex dots
+    for (const v of vertices) {
+      const dot = L.circleMarker(v as L.LatLngExpression, {
+        radius: 5,
+        color,
+        fillColor: color,
+        fillOpacity: 1,
+        weight: 1,
+      })
+      dot.addTo(map)
+      dotRefs.current.push(dot)
+    }
+
+    // Draw preview polyline
+    if (vertices.length > 1) {
+      previewRef.current = L.polyline(vertices as L.LatLngExpression[], {
+        color,
+        weight: 2,
+        dashArray: "6 4",
+        opacity: 0.8,
+      })
+      previewRef.current.addTo(map)
+    }
+
+    return () => {
+      if (previewRef.current) map.removeLayer(previewRef.current)
+      dotRefs.current.forEach((d) => map.removeLayer(d))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, vertices, zone])
+
+  // Change cursor in draw mode
+  useEffect(() => {
+    const container = map.getContainer()
+    container.style.cursor = "crosshair"
+    return () => { container.style.cursor = "" }
+  }, [map])
+
+  return null
+}
+
+// ─── Bounds fitter ────────────────────────────────────────────────────────────
+
+function BoundsFitter({ properties }: { properties: Property[] }) {
+  const map = useMap()
+  const fitted = useRef(false)
+
+  useEffect(() => {
+    if (fitted.current) return
+    const pts = properties.filter((p) => p.lat != null && p.lng != null)
+    if (pts.length === 0) return
+    const bounds = L.latLngBounds(pts.map((p) => [p.lat!, p.lng!] as [number, number]))
+    map.fitBounds(bounds, { padding: [32, 32] })
+    fitted.current = true
+  }, [map, properties])
+
+  return null
+}
+
+// ─── Main exported map ────────────────────────────────────────────────────────
+
+export default function ZoneLeafletMap({
+  zones,
+  properties,
+  selectedZoneId,
+  drawingZoneId,
+  onPolygonComplete,
+  onAssignProperty,
+}: ZoneMapProps) {
+  const [vertices, setVertices] = useState<[number, number][]>([])
+  const prevDrawingId = useRef<string | null>(null)
+
+  // Reset vertices when draw mode starts for a new zone
+  useEffect(() => {
+    if (drawingZoneId !== prevDrawingId.current) {
+      setVertices([])
+      prevDrawingId.current = drawingZoneId
+    }
+  }, [drawingZoneId])
+
+  const drawingZone = drawingZoneId ? zones.find((z) => z.id === drawingZoneId) : undefined
+
+  const center: [number, number] = (() => {
+    const pts = properties.filter((p) => p.lat != null && p.lng != null)
+    if (pts.length === 0) return [39.5, -98.35]
+    const lat = pts.reduce((s, p) => s + p.lat!, 0) / pts.length
+    const lng = pts.reduce((s, p) => s + p.lng!, 0) / pts.length
+    return [lat, lng]
+  })()
+
+  function handleFinish() {
+    if (drawingZoneId && vertices.length >= 3) {
+      onPolygonComplete(drawingZoneId, vertices)
+      setVertices([])
+    }
+  }
+
+  function handleUndo() {
+    setVertices((v) => v.slice(0, -1))
+  }
+
   return (
-    <div style={{ position: "relative", height: "100%", width: "100%" }}>
+    <div className="relative h-full w-full">
       <MapContainer
         center={center}
-        zoom={12}
+        zoom={11}
         style={{ height: "100%", width: "100%" }}
         zoomControl={true}
       >
@@ -190,80 +256,64 @@ export default function ZoneMapLeaflet({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <ExistingZonePolygons zones={existingZones} />
-        <DrawnPolygonLayer polygon={drawnPolygon} isDrawing={isDrawing} />
-        <PolygonDrawer
-          isDrawing={isDrawing}
-          onPolygonChange={onPolygonChange}
-          onDrawingStateChange={onDrawingStateChange}
+        <BoundsFitter properties={properties} />
+        <ZonePolygons zones={zones} selectedZoneId={selectedZoneId} />
+        <PropertyMarkers
+          properties={properties}
+          zones={zones}
+          selectedZoneId={selectedZoneId}
+          onAssignProperty={onAssignProperty}
         />
+        {drawingZoneId && (
+          <DrawingLayer
+            drawingZoneId={drawingZoneId}
+            zone={drawingZone}
+            vertices={vertices}
+            onVertexAdded={(lat, lng) => setVertices((v) => [...v, [lat, lng]])}
+          />
+        )}
       </MapContainer>
 
-      {/* Drawing controls overlaid on map */}
-      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 1000, display: "flex", gap: 4 }}>
-        {!isDrawing ? (
-          <button
-            onClick={() => {
-              onDrawingStateChange(true)
-            }}
-            style={{
-              background: "#16a34a",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              padding: "6px 10px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 1px 4px rgba(0,0,0,.3)",
-            }}
-          >
-            {drawnPolygon ? "Redraw" : "Start Drawing"}
-          </button>
-        ) : (
-          <button
-            onClick={() => {
-              onDrawingStateChange(false)
-            }}
-            style={{
-              background: "#ef4444",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              padding: "6px 10px",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 1px 4px rgba(0,0,0,.3)",
-            }}
-          >
-            Cancel
-          </button>
-        )}
-      </div>
+      {/* ── Draw mode controls overlay ── */}
+      {drawingZoneId && (
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-[1000] flex -translate-x-1/2 items-center gap-2">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-md">
+            <span
+              className="h-3 w-3 rounded-full"
+              style={{ backgroundColor: drawingZone?.color ?? "#22c55e" }}
+            />
+            <span className="text-xs font-medium text-foreground">
+              {drawingZone?.name ?? "Drawing zone"} · {vertices.length} point{vertices.length !== 1 ? "s" : ""}
+              {vertices.length < 3 && " (need 3+)"}
+            </span>
+            <button
+              onClick={handleUndo}
+              disabled={vertices.length === 0}
+              className="ml-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-40"
+            >
+              Undo
+            </button>
+            <button
+              onClick={handleFinish}
+              disabled={vertices.length < 3}
+              className="rounded bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40"
+            >
+              Finish
+            </button>
+          </div>
+        </div>
+      )}
 
-      {isDrawing && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 8,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 1000,
-            background: "rgba(0,0,0,0.65)",
-            color: "#fff",
-            borderRadius: 6,
-            padding: "4px 10px",
-            fontSize: 11,
-            pointerEvents: "none",
-          }}
-        >
-          Click to add points · Double-click to finish
+      {/* ── Select zone hint ── */}
+      {!drawingZoneId && selectedZoneId && (
+        <div className="pointer-events-none absolute bottom-4 left-1/2 z-[1000] -translate-x-1/2">
+          <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-md">
+            <p className="text-xs text-muted-foreground">
+              Click a property pin to assign / unassign it to the selected zone
+            </p>
+          </div>
         </div>
       )}
     </div>
   )
 }
-
-// Re-export helpers so the dialog can use them
-export { toLeaflet, toGeoJSON }

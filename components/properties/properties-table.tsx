@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useTransition } from "react"
 import Link from "next/link"
 import {
   Search,
@@ -17,7 +17,8 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { AddPropertySheet } from "@/components/properties/add-property-sheet"
-import { type Property, type Client } from "@/types"
+import { type Property, type Client, type ServiceZone } from "@/types"
+import { assignPropertyZone } from "@/app/actions/zones"
 import { cn } from "@/lib/utils"
 
 type TypeFilter = "all" | "residential" | "commercial"
@@ -31,13 +32,27 @@ const TYPE_FILTERS: { label: string; value: TypeFilter }[] = [
 interface PropertiesTableProps {
   properties: Property[]
   clients: Client[]
+  zones?: ServiceZone[]
 }
 
-export function PropertiesTable({ properties, clients }: PropertiesTableProps) {
+export function PropertiesTable({ properties, clients, zones = [] }: PropertiesTableProps) {
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all")
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<Property | undefined>(undefined)
+  const [isPending, startTransition] = useTransition()
+
+  const zoneMap = useMemo(() => {
+    const m: Record<string, ServiceZone> = {}
+    for (const z of zones) m[z.id] = z
+    return m
+  }, [zones])
+
+  function handleZoneChange(propertyId: string, zoneId: string) {
+    startTransition(async () => {
+      await assignPropertyZone(propertyId, zoneId === "" ? null : zoneId)
+    })
+  }
 
   // Build a client lookup map
   const clientMap = useMemo(() => {
@@ -191,6 +206,29 @@ export function PropertiesTable({ properties, clients }: PropertiesTableProps) {
                   >
                     {client.name}
                   </Link>
+                )}
+
+                {/* Zone assignment */}
+                {zones.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    {property.zone_id && zoneMap[property.zone_id] && (
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: zoneMap[property.zone_id].color }}
+                      />
+                    )}
+                    <select
+                      value={property.zone_id ?? ""}
+                      onChange={(e) => handleZoneChange(property.id, e.target.value)}
+                      disabled={isPending}
+                      className="min-w-0 flex-1 rounded border border-border bg-background px-1.5 py-0.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
+                    >
+                      <option value="">No zone</option>
+                      {zones.map((z) => (
+                        <option key={z.id} value={z.id}>{z.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 )}
 
                 {/* Details row */}
