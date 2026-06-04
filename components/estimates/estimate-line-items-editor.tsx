@@ -21,7 +21,7 @@ interface Props {
 
 export function EstimateLineItemsEditor({ serviceTypes }: Props) {
   const { register, control, watch, setValue } = useFormContext()
-  const { fields, append, remove } = useFieldArray({ control, name: "items" })
+  const { fields, append, remove, update } = useFieldArray({ control, name: "items" })
 
   function addRow() {
     append({ service_type_id: null, description: "", qty: 1, unit_price: 0, duration_min: null })
@@ -39,7 +39,7 @@ export function EstimateLineItemsEditor({ serviceTypes }: Props) {
     }
   }
 
-  const items = watch("items") as Array<{ qty: number; unit_price: number }> ?? []
+  const items = watch("items") as Array<{ description: string; qty: number; unit_price: number }> ?? []
 
   return (
     <div className="space-y-2">
@@ -129,7 +129,13 @@ export function EstimateLineItemsEditor({ serviceTypes }: Props) {
         </Button>
         <PriceRecommendationEngine
           onApply={(price, description, durationMin) => {
-            append({ service_type_id: null, description, qty: 1, unit_price: price, duration_min: durationMin })
+            const newItem = { service_type_id: null, description, qty: 1, unit_price: price, duration_min: durationMin }
+            const onlyBlankRow = fields.length === 1 && !items[0]?.description && !Number(items[0]?.unit_price)
+            if (onlyBlankRow) {
+              update(0, newItem)
+            } else {
+              append(newItem)
+            }
           }}
         />
       </div>
