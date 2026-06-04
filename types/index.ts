@@ -46,7 +46,29 @@ export type CampaignStatus = "draft" | "sent"
 
 // ─── Core entities ────────────────────────────────────────────────────────────
 
-export interface Business {
+export interface PricingSettings {
+  pricing_sqft_per_min: number
+  pricing_complexity_easy_mult: number
+  pricing_complexity_normal_mult: number
+  pricing_complexity_difficult_mult: number
+  pricing_edge_add_min: number
+  pricing_blow_add_min: number
+  pricing_default_crew_rate: number
+  pricing_range_pct: number
+}
+
+export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
+  pricing_sqft_per_min: 400,
+  pricing_complexity_easy_mult: 0.8,
+  pricing_complexity_normal_mult: 1.0,
+  pricing_complexity_difficult_mult: 1.35,
+  pricing_edge_add_min: 7,
+  pricing_blow_add_min: 5,
+  pricing_default_crew_rate: 90,
+  pricing_range_pct: 10,
+}
+
+export interface Business extends PricingSettings {
   id: string
   business_name: string
   slug: string

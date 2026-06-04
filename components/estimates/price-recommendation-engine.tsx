@@ -5,6 +5,7 @@ import { Calculator, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { type PricingSettings, DEFAULT_PRICING_SETTINGS } from "@/types"
 
 interface PriceResult {
   laborMin: number
@@ -24,15 +25,6 @@ const COMPLEXITY_LABELS: Record<Complexity, string> = {
   difficult: "Difficult",
 }
 
-const COMPLEXITY_MULT: Record<Complexity, number> = {
-  easy: 0.8,
-  normal: 1.0,
-  difficult: 1.35,
-}
-
-// Calibrated to: 12,000 sq ft lawn = 30 min base mow time
-const SQ_FT_PER_MIN = 400
-
 function calcPrice(
   sizeSqFt: number,
   complexity: Complexity,
@@ -40,16 +32,26 @@ function calcPrice(
   includeBlow: boolean,
   travelMin: number,
   crewRate: number,
+  settings: PricingSettings,
 ): PriceResult {
-  const baseMowMin = sizeSqFt / SQ_FT_PER_MIN
-  const adjustedMowMin = baseMowMin * COMPLEXITY_MULT[complexity]
+  const complexityMult = {
+    easy: settings.pricing_complexity_easy_mult,
+    normal: settings.pricing_complexity_normal_mult,
+    difficult: settings.pricing_complexity_difficult_mult,
+  }[complexity]
+
+  const baseMowMin = sizeSqFt / settings.pricing_sqft_per_min
+  const adjustedMowMin = baseMowMin * complexityMult
   const laborMin = Math.round(
-    adjustedMowMin + (includeEdge ? 7 : 0) + (includeBlow ? 5 : 0),
+    adjustedMowMin +
+      (includeEdge ? settings.pricing_edge_add_min : 0) +
+      (includeBlow ? settings.pricing_blow_add_min : 0),
   )
   const totalMin = laborMin + travelMin
   const priceMid = (totalMin / 60) * crewRate
-  const priceLow = Math.round(priceMid * 0.9)
-  const priceHigh = Math.round(priceMid * 1.1)
+  const band = settings.pricing_range_pct / 100
+  const priceLow = Math.round(priceMid * (1 - band))
+  const priceHigh = Math.round(priceMid * (1 + band))
 
   const acres = (sizeSqFt / 43560).toFixed(2)
   const services = ["Mow", includeEdge && "Edge", includeBlow && "Blow"]
@@ -62,9 +64,11 @@ function calcPrice(
 
 interface Props {
   onApply: (price: number, description: string, durationMin: number) => void
+  pricingSettings?: PricingSettings
 }
 
-export function PriceRecommendationEngine({ onApply }: Props) {
+export function PriceRecommendationEngine({ onApply, pricingSettings }: Props) {
+  const settings = pricingSettings ?? DEFAULT_PRICING_SETTINGS
   const [open, setOpen] = useState(false)
   const [size, setSize] = useState("")
   const [unit, setUnit] = useState<SizeUnit>("sqft")
@@ -72,7 +76,7 @@ export function PriceRecommendationEngine({ onApply }: Props) {
   const [includeEdge, setIncludeEdge] = useState(true)
   const [includeBlow, setIncludeBlow] = useState(true)
   const [travelMin, setTravelMin] = useState(10)
-  const [crewRate, setCrewRate] = useState(90)
+  const [crewRate, setCrewRate] = useState(settings.pricing_default_crew_rate)
 
   const sizeSqFt = useMemo(() => {
     const n = parseFloat(size)
@@ -82,8 +86,8 @@ export function PriceRecommendationEngine({ onApply }: Props) {
 
   const result = useMemo<PriceResult | null>(() => {
     if (sizeSqFt <= 0) return null
-    return calcPrice(sizeSqFt, complexity, includeEdge, includeBlow, travelMin, crewRate)
-  }, [sizeSqFt, complexity, includeEdge, includeBlow, travelMin, crewRate])
+    return calcPrice(sizeSqFt, complexity, includeEdge, includeBlow, travelMin, crewRate, settings)
+  }, [sizeSqFt, complexity, includeEdge, includeBlow, travelMin, crewRate, settings])
 
   function handleApply() {
     if (!result) return
