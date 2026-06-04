@@ -119,9 +119,75 @@ const PropertySchema = z.object({
   access_notes: z.string().optional(),
   pet_notes: z.string().optional(),
   is_commercial: z.boolean().default(false),
+  photo_required: z.boolean().default(false),
 })
 
 export type PropertyFormValues = z.infer<typeof PropertySchema>
+
+export type PropertyPhoto = {
+  id: string
+  photo_url: string
+  photo_type: string
+  caption: string | null
+  created_at: string
+  job_id: string | null
+}
+
+export type PropertyPhotoGroup = {
+  jobId: string | null
+  serviceDate: string | null
+  photos: PropertyPhoto[]
+}
+
+export type GetPropertyPhotosResult =
+  | { success: true; groups: PropertyPhotoGroup[] }
+  | { success: false; message: string }
+
+export async function getPropertyPhotos(
+  propertyId: string,
+): Promise<GetPropertyPhotosResult> {
+  if (!propertyId) return { success: false, message: "Property ID is required." }
+
+  const supabase = await createSupabaseClient()
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { data, error } = await db
+    .from("property_photos")
+    .select("id, photo_url, photo_type, caption, created_at, job_id, job:jobs(service_date)")
+    .eq("property_id", propertyId)
+    .eq("business_id", businessId)
+    .order("created_at", { ascending: false })
+
+  if (error) return { success: false, message: error.message }
+
+  const rows = (data ?? []) as Array<PropertyPhoto & { job?: { service_date: string | null } }>
+
+  // Group by job_id, preserving insertion order (already sorted desc by created_at)
+  const groupMap = new Map<string, PropertyPhotoGroup>()
+  for (const row of rows) {
+    const key = row.job_id ?? "unlinked"
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        jobId:       row.job_id,
+        serviceDate: (row as any).job?.service_date ?? null,
+        photos:      [],
+      })
+    }
+    groupMap.get(key)!.photos.push({
+      id:         row.id,
+      photo_url:  row.photo_url,
+      photo_type: row.photo_type,
+      caption:    row.caption,
+      created_at: row.created_at,
+      job_id:     row.job_id,
+    })
+  }
+
+  return { success: true, groups: Array.from(groupMap.values()) }
+}
 
 export type BulkGeocodeState = {
   geocoded: number
@@ -206,6 +272,7 @@ export async function saveProperty(values: PropertyFormValues): Promise<Property
     access_notes: fields.access_notes?.trim() || null,
     pet_notes: fields.pet_notes?.trim() || null,
     is_commercial: fields.is_commercial,
+    photo_required: fields.photo_required,
   }
   const coordinateFields = coordinates
     ? { lat: coordinates.lat, lng: coordinates.lng }

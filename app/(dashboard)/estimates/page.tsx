@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { EstimatesTable } from "@/components/estimates/estimates-table"
 import { CreateEstimateSheet } from "@/components/estimates/create-estimate-sheet"
+import { getPricingSettings } from "@/app/actions/settings"
 import type { Estimate, Client, ServiceType } from "@/types"
 
 export const metadata = { title: "Estimates" }
@@ -10,7 +11,7 @@ export default async function EstimatesPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  const [estimatesResult, clientsResult, serviceTypesResult] = await Promise.all([
+  const [estimatesResult, clientsResult, serviceTypesResult, pricingSettings] = await Promise.all([
     db
       .from("estimates")
       .select("*, client:clients(id, name)")
@@ -24,6 +25,7 @@ export default async function EstimatesPage() {
       .from("service_types")
       .select("id, name, default_duration_min, default_price, is_recurring, is_seasonal")
       .order("name"),
+    getPricingSettings(),
   ])
 
   const estimates = (estimatesResult.data ?? []) as Estimate[]
@@ -46,7 +48,7 @@ export default async function EstimatesPage() {
             {estimates.length} total · {draftCount} draft · {sentCount} sent · {approvedCount} approved
           </p>
         </div>
-        <CreateEstimateSheet clients={clients} serviceTypes={serviceTypes} />
+        <CreateEstimateSheet clients={clients} serviceTypes={serviceTypes} pricingSettings={pricingSettings} />
       </div>
 
       {/* KPI strip */}

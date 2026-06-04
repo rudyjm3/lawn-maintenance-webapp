@@ -227,6 +227,11 @@ export function PropertyServicesPanel({
           propertyServiceId={scheduleTarget.id}
           clientId={clientId}
           existingRule={scheduleTarget.recurrence_rules?.[0]}
+          lockedFrequency={
+            (scheduleTarget.service_type?.default_frequency_type ??
+              serviceTypes.find((s) => s.id === scheduleTarget.service_type_id)?.default_frequency_type ??
+              null) as import("@/types").FrequencyType | null
+          }
         />
       )}
     </div>

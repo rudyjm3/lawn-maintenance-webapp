@@ -83,15 +83,13 @@ export function AssignServiceDialog({
   )
 
   const availableTypes = useMemo(() => {
-    if (isEditing && existingService) {
-      return serviceTypes.filter(
-        (st) =>
-          !assignedServiceTypeIds.includes(st.id) ||
-          st.id === existingService.service_type_id
-      )
-    }
-    return serviceTypes.filter((st) => !assignedServiceTypeIds.includes(st.id))
-  }, [serviceTypes, assignedServiceTypeIds, isEditing, existingService])
+    // Exclude types already assigned to other property services on this property.
+    // When editing, the current service's own type and any unassigned type are both valid choices.
+    const otherAssignedIds = assignedServiceTypeIds.filter(
+      (id) => id !== existingService?.service_type_id
+    )
+    return serviceTypes.filter((st) => !otherAssignedIds.includes(st.id))
+  }, [serviceTypes, assignedServiceTypeIds, existingService])
 
   useEffect(() => {
     if (open) {
@@ -148,7 +146,6 @@ export function AssignServiceDialog({
               key={existingService?.service_type_id ?? "new"}
               defaultValue={existingService?.service_type_id ?? ""}
               onValueChange={(v) => setValue("service_type_id", v)}
-              disabled={isEditing}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Choose a service…" />

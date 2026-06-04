@@ -11,6 +11,7 @@ import {
   Clock,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { completeJob } from "@/app/actions/jobs"
 import { PhotoUpload } from "@/components/crew/photo-upload"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -206,53 +207,19 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     setSubmittingAction("complete")
     setSubmitError(null)
 
-    const supabase = createClient()
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any
-    const now = new Date().toISOString()
     const elapsedMin = Math.max(1, Math.round(elapsedSec / 60))
+    const startIso = new Date(startMs ?? Date.now()).toISOString()
     localStorage.removeItem(`job-start-${jobId}`)
 
     try {
-      // Update job status
-      const { error: e1 } = await db.from("jobs").update({
-        status: "completed",
-        actual_duration_min: elapsedMin,
-      }).eq("id", job.id)
-      if (e1) throw new Error(e1.message)
-
-      // Update route stop — filter by both id and job_id to prevent stop/job mismatch
-      if (stopId) {
-        const { error: e2 } = await db.from("route_stops").update({
-          status: "completed",
-          actual_finish: now,
-        }).eq("id", stopId).eq("job_id", job.id)
-        if (e2) throw new Error(e2.message)
-      }
-
-      // Insert time log
-      const startIso = new Date(startMs ?? Date.now()).toISOString()
-      const { error: e3 } = await db.from("time_logs").insert({
-        job_id:      job.id,
-        user_id:     currentUser.id,
-        start_time:  startIso,
-        end_time:    now,
-        duration_min: elapsedMin,
-        notes:       notes || null,
-        business_id: job.business_id,
+      const result = await completeJob({
+        jobId:             job.id,
+        stopId:            stopId ?? undefined,
+        notes:             notes || undefined,
+        actualDurationMin: elapsedMin,
+        startIso,
       })
-      if (e3) throw new Error(e3.message)
-
-      // Insert activity log
-      const { error: e4 } = await db.from("activity_logs").insert({
-        entity_type: "job",
-        entity_id:   job.id,
-        action_type: "completed",
-        user_id:     currentUser.id,
-        business_id: job.business_id,
-        metadata:    { notes: notes || null, duration_min: elapsedMin },
-      })
-      if (e4) throw new Error(e4.message)
+      if (!result.success) throw new Error(result.message)
 
       toast.success("Job completed.")
       // Fire-and-forget — email failure must not block navigation

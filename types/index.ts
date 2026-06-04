@@ -40,9 +40,35 @@ export type InvoiceReminderType =
   | "overdue_plus_7"
   | "overdue_notice"
 
+export type JobReminderType = "day_before" | "completion" | "review_request"
+
+export type CampaignStatus = "draft" | "sent"
+
 // ─── Core entities ────────────────────────────────────────────────────────────
 
-export interface Business {
+export interface PricingSettings {
+  pricing_sqft_per_min: number
+  pricing_complexity_easy_mult: number
+  pricing_complexity_normal_mult: number
+  pricing_complexity_difficult_mult: number
+  pricing_edge_add_min: number
+  pricing_blow_add_min: number
+  pricing_default_crew_rate: number
+  pricing_range_pct: number
+}
+
+export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
+  pricing_sqft_per_min: 400,
+  pricing_complexity_easy_mult: 0.8,
+  pricing_complexity_normal_mult: 1.0,
+  pricing_complexity_difficult_mult: 1.35,
+  pricing_edge_add_min: 7,
+  pricing_blow_add_min: 5,
+  pricing_default_crew_rate: 90,
+  pricing_range_pct: 10,
+}
+
+export interface Business extends PricingSettings {
   id: string
   business_name: string
   slug: string
@@ -71,6 +97,7 @@ export interface Client {
   status: ClientStatus
   source: string | null
   notes: string | null
+  marketing_opt_out?: boolean
   created_at: string
 }
 
@@ -100,6 +127,7 @@ export interface ServiceType {
   default_price: number
   is_recurring: boolean
   is_seasonal: boolean
+  default_frequency_type: FrequencyType | null
 }
 
 export interface ServiceTemplate {
@@ -176,6 +204,11 @@ export interface Job {
   actual_duration_min: number | null
   price: number
   photo_required: boolean
+  review_token?: string | null
+  review_requested_at?: string | null
+  review_rating?: number | null
+  review_text?: string | null
+  review_submitted_at?: string | null
   created_at: string
   // Joined
   client?: Client
@@ -406,4 +439,25 @@ export interface ActivityItem {
   description: string
   timestamp: string
   meta?: Record<string, string>
+}
+
+export interface Campaign {
+  id: string
+  business_id: string
+  subject: string
+  body: string
+  status: CampaignStatus
+  recipient_count: number
+  sent_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ScheduleSuggestion {
+  jobId: string
+  jobTitle: string
+  currentDate: string
+  suggestedDate: string
+  currentCrewName: string
+  reason: string
 }

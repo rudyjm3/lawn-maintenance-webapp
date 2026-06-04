@@ -26,7 +26,7 @@ import {
 import { saveRecurrenceRule } from "@/app/actions/service-catalog"
 import { computeOccurrences } from "@/lib/scheduling/recurrence"
 import { ScheduleExceptionsList } from "@/components/service-catalog/schedule-exceptions-list"
-import type { RecurrenceRule } from "@/types"
+import type { RecurrenceRule, FrequencyType } from "@/types"
 import { cn } from "@/lib/utils"
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -49,12 +49,20 @@ interface FormValues {
   end_date: string
 }
 
+const FREQ_LABELS: Record<FrequencyType, string> = {
+  weekly: "Weekly",
+  biweekly: "Biweekly (every 2 weeks)",
+  monthly: "Monthly",
+  custom: "Custom interval",
+}
+
 interface RecurrenceRuleDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   propertyServiceId: string
   clientId: string
   existingRule?: RecurrenceRule
+  lockedFrequency?: FrequencyType | null
 }
 
 export function RecurrenceRuleDialog({
@@ -63,6 +71,7 @@ export function RecurrenceRuleDialog({
   propertyServiceId,
   clientId,
   existingRule,
+  lockedFrequency,
 }: RecurrenceRuleDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [selectedDow, setSelectedDow] = useState<number | null>(null)
@@ -93,9 +102,10 @@ export function RecurrenceRuleDialog({
 
   useEffect(() => {
     if (open) {
+      const effectiveFrequency = lockedFrequency ?? (existingRule?.frequency_type ?? "weekly")
       if (existingRule) {
         reset({
-          frequency_type: existingRule.frequency_type,
+          frequency_type: effectiveFrequency,
           interval: String(existingRule.interval),
           start_date: existingRule.start_date,
           end_date: existingRule.end_date ?? "",
@@ -103,13 +113,13 @@ export function RecurrenceRuleDialog({
         setSelectedDow(existingRule.day_of_week ?? null)
         setSelectedMonths(existingRule.active_months ?? [])
       } else {
-        reset({ frequency_type: "weekly", interval: "2", start_date: "", end_date: "" })
+        reset({ frequency_type: effectiveFrequency, interval: "2", start_date: "", end_date: "" })
         setSelectedDow(null)
         setSelectedMonths([])
       }
       setExceptionsExpanded(false)
     }
-  }, [open, existingRule, reset])
+  }, [open, existingRule, lockedFrequency, reset])
 
   const previewDates = useMemo(() => {
     if (!watchStartDate) return []
@@ -180,21 +190,28 @@ export function RecurrenceRuleDialog({
             {/* Frequency */}
             <div className="flex flex-col gap-1.5">
               <Label>Frequency</Label>
-              <Select
-                key={existingRule?.frequency_type ?? "weekly"}
-                defaultValue={existingRule?.frequency_type ?? "weekly"}
-                onValueChange={(v) => setValue("frequency_type", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="biweekly">Biweekly (every 2 weeks)</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="custom">Custom interval</SelectItem>
-                </SelectContent>
-              </Select>
+              {lockedFrequency ? (
+                <div className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2">
+                  <span className="text-sm font-medium">{FREQ_LABELS[lockedFrequency]}</span>
+                  <Badge variant="secondary" className="text-xs ml-auto">Set by service type</Badge>
+                </div>
+              ) : (
+                <Select
+                  key={existingRule?.frequency_type ?? "weekly"}
+                  defaultValue={existingRule?.frequency_type ?? "weekly"}
+                  onValueChange={(v) => setValue("frequency_type", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="biweekly">Biweekly (every 2 weeks)</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">Custom interval</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             {/* Interval (custom only) */}
