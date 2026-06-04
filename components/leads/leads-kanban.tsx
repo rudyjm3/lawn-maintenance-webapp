@@ -1,6 +1,7 @@
 "use client"
 
 import { useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { UserPlus, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -165,6 +166,7 @@ function LeadCard({
 }
 
 export function LeadsKanban({ leads }: { leads: Lead[] }) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   function handleStatusChange(leadId: string, status: LeadStatus) {
@@ -172,6 +174,7 @@ export function LeadsKanban({ leads }: { leads: Lead[] }) {
       const result = await updateLeadStatus(leadId, status)
       if (result.success) {
         toast.success(result.message)
+        router.refresh()
       } else {
         toast.error(result.message)
       }
@@ -184,6 +187,7 @@ export function LeadsKanban({ leads }: { leads: Lead[] }) {
       const result = await convertLeadToClient(leadId)
       if (result.success) {
         toast.success(result.message)
+        router.refresh()
       } else {
         toast.error(result.message)
       }

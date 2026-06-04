@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { CloudRain, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -38,6 +39,7 @@ function WeatherRescheduleModal({
   onOpenChange: (open: boolean) => void
   affectedDays: AffectedDay[]
 }) {
+  const router = useRouter()
   const [targetDates, setTargetDates] = useState<Record<string, string>>(() =>
     Object.fromEntries(affectedDays.map((d) => [d.date, nextDay(d.date)])),
   )
@@ -62,6 +64,7 @@ function WeatherRescheduleModal({
         toast.success(
           `${succeeded} day${succeeded > 1 ? "s" : ""} rescheduled successfully.`,
         )
+        router.refresh()
       }
       if (failed === 0) {
         onOpenChange(false)
