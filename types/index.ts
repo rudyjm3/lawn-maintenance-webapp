@@ -113,6 +113,7 @@ export interface Property {
   pet_notes: string | null
   lawn_size: string | null
   is_commercial: boolean
+  photo_required: boolean
   zone_id: string | null
   // Joined
   client?: Client

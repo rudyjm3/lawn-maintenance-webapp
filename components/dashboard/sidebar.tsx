@@ -22,6 +22,7 @@ import {
   Leaf,
   Smartphone,
   Shapes,
+  Send,
 } from "lucide-react"
 
 const navItems = [
