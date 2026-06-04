@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { type ServiceType } from "@/types"
+import { PriceRecommendationEngine } from "@/components/estimates/price-recommendation-engine"
 
 interface Props {
   serviceTypes: ServiceType[]
@@ -115,16 +116,23 @@ export function EstimateLineItemsEditor({ serviceTypes }: Props) {
         )
       })}
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="gap-1.5 text-xs h-8"
-        onClick={addRow}
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Add Line Item
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-xs h-8"
+          onClick={addRow}
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Line Item
+        </Button>
+        <PriceRecommendationEngine
+          onApply={(price, description, durationMin) => {
+            append({ service_type_id: null, description, qty: 1, unit_price: price, duration_min: durationMin })
+          }}
+        />
+      </div>
     </div>
   )
 }
