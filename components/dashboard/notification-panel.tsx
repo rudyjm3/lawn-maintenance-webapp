@@ -123,7 +123,7 @@ export function NotificationPanel() {
         <Bell className="h-4 w-4" />
         {(unreadCount === null || unreadCount > 0) && (
           <span className={cn(
-            "absolute right-1 top-1 flex items-center justify-center rounded-full bg-destructive text-destructive-foreground font-bold leading-none",
+            "absolute right-1 top-1 flex items-center justify-center rounded-full bg-destructive text-white font-bold leading-none",
             unreadCount !== null && unreadCount > 0
               ? "min-w-[14px] h-[14px] px-0.5 text-[9px]"
               : "h-2 w-2"
@@ -136,7 +136,7 @@ export function NotificationPanel() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden">
           <DialogHeader className="px-4 pt-4 pb-3 border-b border-border">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 pr-10">
               <DialogTitle className="flex items-center gap-2 text-base">
                 Notifications
                 {totalCount !== null && totalCount > 0 && (
