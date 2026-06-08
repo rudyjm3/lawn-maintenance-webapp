@@ -839,7 +839,10 @@ interface ClientDetailTabsProps {
   invoices: Invoice[]
   reviews: ReviewJob[]
   revenueSummary: { earned: number; collected: number; outstanding: number; paymentCount: number; lastPaymentDate: string | null }
+  initialTab?: string
 }
+
+const VALID_TABS = new Set(["overview", "properties", "services", "history", "estimates", "invoices", "reviews", "activity", "notes"])
 
 export function ClientDetailTabs({
   client,
@@ -852,9 +855,11 @@ export function ClientDetailTabs({
   invoices,
   reviews,
   revenueSummary,
+  initialTab,
 }: ClientDetailTabsProps) {
+  const defaultTab = initialTab && VALID_TABS.has(initialTab) ? initialTab : "overview"
   return (
-    <Tabs defaultValue="overview" className="space-y-5">
+    <Tabs defaultValue={defaultTab} className="space-y-5">
       <TabsList className="border-b border-border bg-transparent p-0 h-auto rounded-none gap-0">
         {[
           { value: "overview", label: "Overview" },

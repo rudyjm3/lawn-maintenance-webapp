@@ -106,7 +106,13 @@ export function NotificationPanel() {
                   return (
                     <button
                       key={job.id}
-                      onClick={() => { router.push("/jobs"); setOpen(false) }}
+                      onClick={() => {
+                        const dest = job.client_id
+                          ? `/clients/${job.client_id}?tab=history`
+                          : "/jobs"
+                        router.push(dest)
+                        setOpen(false)
+                      }}
                       className="flex w-full items-start gap-3 px-4 py-2.5 text-left hover:bg-muted/50 transition-colors"
                     >
                       <Icon className={cn("h-4 w-4 mt-0.5 shrink-0", cfg.color)} />
