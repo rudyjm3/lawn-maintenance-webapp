@@ -558,20 +558,21 @@ function RevenueSummaryStrip({
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
       {[
-        { label: "Revenue Earned", value: `$${summary.earned.toFixed(2)}` },
-        { label: "Revenue Collected", value: `$${summary.collected.toFixed(2)}` },
-        { label: "Outstanding", value: `$${summary.outstanding.toFixed(2)}` },
-        { label: "Payments", value: String(summary.paymentCount) },
+        { label: "Revenue Earned",    value: `$${summary.earned.toFixed(2)}`,     color: "bg-emerald-50 border-emerald-200 text-emerald-700" },
+        { label: "Revenue Collected", value: `$${summary.collected.toFixed(2)}`,  color: "bg-sky-50 border-sky-200 text-sky-700" },
+        { label: "Outstanding",       value: `$${summary.outstanding.toFixed(2)}`,color: "bg-amber-50 border-amber-200 text-amber-700" },
+        { label: "Payments",          value: String(summary.paymentCount),         color: "bg-violet-50 border-violet-200 text-violet-700" },
         {
           label: "Last Payment",
           value: summary.lastPaymentDate
             ? new Date(`${summary.lastPaymentDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
             : "—",
+          color: "border-border bg-card",
         },
       ].map((card) => (
-        <div key={card.label} className="rounded-xl border border-border bg-card p-3">
-          <p className="text-xs text-muted-foreground">{card.label}</p>
-          <p className="text-sm font-semibold text-foreground mt-1">{card.value}</p>
+        <div key={card.label} className={`rounded-xl border p-3 ${card.color}`}>
+          <p className="text-xs opacity-70">{card.label}</p>
+          <p className="text-sm font-semibold mt-1">{card.value}</p>
         </div>
       ))}
     </div>

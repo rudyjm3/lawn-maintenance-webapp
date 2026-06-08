@@ -163,13 +163,18 @@ export function PropertyServicesPanel({
 
                   {/* Actions */}
                   <div className="flex items-center gap-1 shrink-0">
-                    <Switch
-                      checked={ps.is_active}
-                      disabled={togglingId === ps.id}
-                      onCheckedChange={() => handleToggleActive(ps)}
-                      aria-label="Toggle active"
-                      className="scale-75"
-                    />
+                    <div className="flex flex-col items-center gap-0.5">
+                      <Switch
+                        checked={ps.is_active}
+                        disabled={togglingId === ps.id}
+                        onCheckedChange={() => handleToggleActive(ps)}
+                        aria-label="Toggle active"
+                        className="scale-75"
+                      />
+                      <span className={cn("text-[10px] font-medium", ps.is_active ? "text-emerald-600" : "text-amber-600")}>
+                        {ps.is_active ? "Active" : "Paused"}
+                      </span>
+                    </div>
                     <button
                       onClick={() => {
                         setScheduleTarget(ps)

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { GeocodePropertiesCard } from "@/components/settings/geocode-properties-card"
-import { PricingFormulaCard } from "@/components/settings/pricing-formula-card"
+import { CollapsiblePricingSection } from "@/components/settings/collapsible-pricing-section"
 import { getPricingSettings } from "@/app/actions/settings"
 
 export const metadata = { title: "Settings" }
@@ -35,10 +35,7 @@ export default async function SettingsPage() {
         <p className="text-sm text-muted-foreground">Manage your account and integrations.</p>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-sm font-semibold text-foreground">Price Calculator</h2>
-        <PricingFormulaCard settings={pricingSettings} />
-      </div>
+      <CollapsiblePricingSection settings={pricingSettings} />
 
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-foreground">Map & Geocoding</h2>
