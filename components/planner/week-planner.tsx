@@ -22,6 +22,7 @@ interface WeekPlannerProps {
   initialDays: WeekDaySnapshot[]
   initialUnscheduled: Job[]
   weatherByDate?: Record<string, DayWeather>
+  initialDate?: string
 }
 
 function isoDate(base: Date, offsetDays: number): string {
@@ -197,18 +198,18 @@ function DayHeader({
 
 // ─── Main planner ─────────────────────────────────────────────────────────────
 
-export function WeekPlanner({ initialDays, initialUnscheduled, weatherByDate = {} }: WeekPlannerProps) {
+export function WeekPlanner({ initialDays, initialUnscheduled, weatherByDate = {}, initialDate }: WeekPlannerProps) {
   const router = useRouter()
   const [allJobs, setAllJobs] = useState<Job[]>([
     ...initialDays.flatMap((day) => day.jobs),
     ...initialUnscheduled,
   ])
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
-    const d = new Date()
-    const day = d.getDay()
-    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1))
-    d.setHours(0, 0, 0, 0)
-    return d
+    const base = initialDate ? new Date(`${initialDate}T12:00:00`) : new Date()
+    const day = base.getDay()
+    base.setDate(base.getDate() - (day === 0 ? 6 : day - 1))
+    base.setHours(0, 0, 0, 0)
+    return base
   })
   const [draggingJobId, setDraggingJobId] = useState<string | null>(null)
   const draggingJobIdRef = useRef<string | null>(null)
@@ -320,13 +321,13 @@ export function WeekPlanner({ initialDays, initialUnscheduled, weatherByDate = {
     <div className="flex h-full flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={prevWeek}>
+          <Button variant="outline" size="icon" className="h-8 w-8 bg-muted/60 hover:bg-muted" onClick={prevWeek}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={goToday}>
+          <Button variant="outline" size="sm" className="h-8 text-xs bg-muted/60 hover:bg-muted" onClick={goToday}>
             Today
           </Button>
-          <Button variant="outline" size="icon" className="h-8 w-8" onClick={nextWeek}>
+          <Button variant="outline" size="icon" className="h-8 w-8 bg-muted/60 hover:bg-muted" onClick={nextWeek}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

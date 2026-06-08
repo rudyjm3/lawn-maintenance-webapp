@@ -8,12 +8,18 @@ import type { Job } from "@/types"
 export const dynamic = "force-dynamic"
 export const metadata = { title: "Schedule" }
 
-export default async function SchedulePage() {
+export default async function SchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>
+}) {
+  const { date: dateParam } = await searchParams
   const supabase = await createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  const weekStart = startOfWeekUtc(new Date())
+  const baseDate = dateParam ? new Date(`${dateParam}T12:00:00`) : new Date()
+  const weekStart = startOfWeekUtc(baseDate)
   const rangeStart = new Date(weekStart)
   const rangeEnd = new Date(weekStart)
   rangeStart.setUTCDate(rangeStart.getUTCDate() - 7)
@@ -77,6 +83,7 @@ export default async function SchedulePage() {
           initialDays={weekDays}
           initialUnscheduled={unscheduled}
           weatherByDate={weatherByDate}
+          initialDate={dateParam}
         />
       </div>
     </div>

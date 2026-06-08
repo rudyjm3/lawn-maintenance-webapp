@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { CalendarDays, ClipboardPlus, Pencil, Search } from "lucide-react"
+import { useMemo, useState, Fragment } from "react"
+import { useRouter } from "next/navigation"
+import { ArrowUpDown, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ClipboardPlus, Pencil, Search } from "lucide-react"
 import { AddJobSheet } from "@/components/jobs/add-job-sheet"
 import { JobStatusBadge } from "@/components/jobs/job-status-badge"
 import { Button } from "@/components/ui/button"
@@ -24,6 +25,27 @@ import {
 import { getJobServiceLabel } from "@/lib/jobs"
 import { cn } from "@/lib/utils"
 import type { Client, Job, JobStatus, Property } from "@/types"
+
+function startOfWeekSun(d: Date): Date {
+  const date = new Date(d)
+  date.setHours(0, 0, 0, 0)
+  date.setDate(date.getDate() - date.getDay())
+  return date
+}
+
+function toIso(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function weekRangeLabel(sun: Date): string {
+  const sat = new Date(sun.getTime() + 6 * 86_400_000)
+  const sunLabel = sun.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  const satLabel = sat.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  return `${sunLabel} – ${satLabel}`
+}
 
 const STATUS_FILTERS: { label: string; value: JobStatus | "all" }[] = [
   { label: "All", value: "all" },
@@ -54,11 +76,40 @@ export function JobsTable({
   const [statusFilter, setStatusFilter] = useState<JobStatus | "all">("all")
   const [clientFilter, setClientFilter] = useState(initialClientId ?? "all")
   const [propertyFilter, setPropertyFilter] = useState("all")
+  const [weekAnchor, setWeekAnchor] = useState<Date>(() => startOfWeekSun(new Date()))
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [sheetOpen, setSheetOpen] = useState(initialOpenNew)
   const [sheetInstance, setSheetInstance] = useState(0)
   const [editingJob, setEditingJob] = useState<Job | undefined>(undefined)
+  const [sortCol, setSortCol] = useState<"client" | "date" | null>("date")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
+  const router = useRouter()
+
+  const weekStart = toIso(weekAnchor)
+  const weekEnd = toIso(new Date(weekAnchor.getTime() + 6 * 86_400_000))
+
+  function prevWeek() {
+    setWeekAnchor((d) => new Date(d.getTime() - 7 * 86_400_000))
+  }
+
+  function nextWeek() {
+    setWeekAnchor((d) => new Date(d.getTime() + 7 * 86_400_000))
+  }
+
+  function goToday() {
+    setWeekAnchor(startOfWeekSun(new Date()))
+  }
+
+  function toggleSort(col: "client" | "date") {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortCol(col)
+      setSortDir("asc")
+    }
+  }
 
   function openAddJobSheet() {
     setEditingJob(undefined)
@@ -92,19 +143,33 @@ export function JobsTable({
         serviceLabel.includes(query)
       const matchesClient = clientFilter === "all" || job.client_id === clientFilter
       const matchesProperty = propertyFilter === "all" || job.property_id === propertyFilter
+      const matchesWeek = !!job.service_date && job.service_date >= weekStart && job.service_date <= weekEnd
       const matchesDateFrom = !dateFrom || (!!job.service_date && job.service_date >= dateFrom)
       const matchesDateTo = !dateTo || (!!job.service_date && job.service_date <= dateTo)
-      return matchesSearch && matchesClient && matchesProperty && matchesDateFrom && matchesDateTo
+      return matchesSearch && matchesClient && matchesProperty && matchesWeek && matchesDateFrom && matchesDateTo
     })
-  }, [clientFilter, dateFrom, dateTo, jobs, propertyFilter, search])
+  }, [clientFilter, dateFrom, dateTo, jobs, propertyFilter, search, weekEnd, weekStart])
 
-  const filteredJobs = useMemo(
-    () =>
+  const filteredJobs = useMemo(() => {
+    const base =
       statusFilter === "all"
         ? contextFilteredJobs
-        : contextFilteredJobs.filter((job) => job.status === statusFilter),
-    [contextFilteredJobs, statusFilter],
-  )
+        : contextFilteredJobs.filter((job) => job.status === statusFilter)
+
+    if (!sortCol) return base
+
+    return [...base].sort((a, b) => {
+      let cmp = 0
+      if (sortCol === "client") {
+        cmp = (a.client?.name ?? "").localeCompare(b.client?.name ?? "")
+      } else if (sortCol === "date") {
+        const aDate = a.service_date ?? ""
+        const bDate = b.service_date ?? ""
+        cmp = aDate < bDate ? -1 : aDate > bDate ? 1 : 0
+      }
+      return sortDir === "asc" ? cmp : -cmp
+    })
+  }, [contextFilteredJobs, sortCol, sortDir, statusFilter])
 
   return (
     <>
@@ -211,6 +276,19 @@ export function JobsTable({
         </div>
       </div>
 
+      <div className="flex items-center gap-1">
+        <Button variant="outline" size="icon" className="h-8 w-8 bg-muted/60 hover:bg-muted" onClick={prevWeek} aria-label="Previous week">
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" className="h-8 text-xs bg-muted/60 hover:bg-muted" onClick={goToday}>
+          Today
+        </Button>
+        <Button variant="outline" size="icon" className="h-8 w-8 bg-muted/60 hover:bg-muted" onClick={nextWeek} aria-label="Next week">
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        <span className="ml-1 text-sm font-medium text-foreground">{weekRangeLabel(weekAnchor)}</span>
+      </div>
+
       <div className="rounded-xl border border-border bg-card">
         {filteredJobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
@@ -224,10 +302,34 @@ export function JobsTable({
           <Table>
             <TableHeader className="bg-muted/40">
               <TableRow>
-                <TableHead className="px-4">Client</TableHead>
+                <TableHead className="px-4">
+                  <button
+                    onClick={() => toggleSort("client")}
+                    className="flex items-center gap-1 font-medium hover:text-foreground transition-colors"
+                  >
+                    Client
+                    {sortCol === "client" ? (
+                      sortDir === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+                    )}
+                  </button>
+                </TableHead>
                 <TableHead className="px-4">Property</TableHead>
                 <TableHead className="px-4">Service</TableHead>
-                <TableHead className="px-4">Date</TableHead>
+                <TableHead className="px-4">
+                  <button
+                    onClick={() => toggleSort("date")}
+                    className="flex items-center gap-1 font-medium hover:text-foreground transition-colors"
+                  >
+                    Date
+                    {sortCol === "date" ? (
+                      sortDir === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 opacity-40" />
+                    )}
+                  </button>
+                </TableHead>
                 <TableHead className="px-4">Status</TableHead>
                 <TableHead className="px-4">Duration</TableHead>
                 <TableHead className="px-4">Price</TableHead>
@@ -235,42 +337,78 @@ export function JobsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredJobs.map((job) => (
-                <TableRow key={job.id} className="group">
-                  <TableCell className="px-4 py-3 font-medium">{job.client?.name ?? "Unknown client"}</TableCell>
-                  <TableCell className="px-4 py-3 text-muted-foreground">
-                    {job.property?.address ?? "Unknown property"}
-                  </TableCell>
-                  <TableCell className="px-4 py-3">{getJobServiceLabel(job)}</TableCell>
-                  <TableCell className="px-4 py-3 text-muted-foreground">
-                    {job.service_date
-                      ? new Date(`${job.service_date}T12:00:00`).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })
-                      : "Unscheduled"}
-                  </TableCell>
-                  <TableCell className="px-4 py-3">
-                    <JobStatusBadge status={job.status} />
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-muted-foreground">
-                    {job.estimated_duration_min} min
-                  </TableCell>
-                  <TableCell className="px-4 py-3 text-muted-foreground">
-                    ${job.price.toFixed(2)}
-                  </TableCell>
-                  <TableCell className="px-4 py-3">
-                    <button
-                      onClick={() => openEditJobSheet(job)}
-                      className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition-all"
-                      aria-label="Edit job"
+              {filteredJobs.map((job) => {
+                const displayTitle = job.title || getJobServiceLabel(job)
+                const hasCustomTitle = !!job.title
+                const isExpanded = expandedJobId === job.id
+                const colSpan = 8
+
+                return (
+                  <Fragment key={job.id}>
+                    <TableRow
+                      className={cn("group", hasCustomTitle && "cursor-pointer")}
+                      onClick={hasCustomTitle ? () => setExpandedJobId(isExpanded ? null : job.id) : undefined}
                     >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      <TableCell className="px-4 py-3 font-medium">{job.client?.name ?? "Unknown client"}</TableCell>
+                      <TableCell className="px-4 py-3 text-muted-foreground">
+                        {job.property?.address ?? "Unknown property"}
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          {hasCustomTitle && (
+                            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", isExpanded && "rotate-180")} />
+                          )}
+                          <span>{displayTitle}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-muted-foreground">
+                        {job.service_date ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); router.push(`/schedule?date=${job.service_date}`) }}
+                            className="hover:text-foreground hover:underline transition-colors"
+                          >
+                            {new Date(`${job.service_date}T12:00:00`).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </button>
+                        ) : (
+                          "Unscheduled"
+                        )}
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
+                        <JobStatusBadge status={job.status} />
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-muted-foreground">
+                        {job.estimated_duration_min} min
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-muted-foreground">
+                        ${job.price.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => openEditJobSheet(job)}
+                          className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-muted hover:text-foreground transition-all"
+                          aria-label="Edit job"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      </TableCell>
+                    </TableRow>
+                    {hasCustomTitle && isExpanded && (
+                      <TableRow className="bg-muted/30 hover:bg-muted/30">
+                        <TableCell colSpan={colSpan} className="px-8 py-3">
+                          <p className="text-sm font-medium text-foreground">{job.title}</p>
+                          {job.description && (
+                            <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{job.description}</p>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                )
+              })}
             </TableBody>
           </Table>
         )}
