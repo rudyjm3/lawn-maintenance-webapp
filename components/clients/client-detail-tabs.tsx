@@ -9,10 +9,6 @@ import {
   PawPrint,
   Ruler,
   FileText,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  SkipForward,
   Pencil,
   Plus,
   Mail,
@@ -33,21 +29,11 @@ import { type Client, type Property, type Job, type ServiceType, type PropertySe
 
 type ReviewJob = { id: string; title: string | null; service_date: string | null; review_rating: number | null; review_text: string | null; review_submitted_at: string | null }
 import { EstimatesTable } from "@/components/estimates/estimates-table"
+import { JobStatusBadge } from "@/components/jobs/job-status-badge"
 import { InvoicesTable } from "@/components/invoices/invoices-table"
 import { logCommunication } from "@/app/actions/communications"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-
-// ─── Job status display ────────────────────────────────────────────────────────
-
-const JOB_STATUS_CONFIG = {
-  completed: { label: "Completed", icon: CheckCircle2, color: "text-emerald-600" },
-  in_progress: { label: "In Progress", icon: Clock, color: "text-blue-600" },
-  scheduled: { label: "Scheduled", icon: Clock, color: "text-muted-foreground" },
-  unscheduled: { label: "Unscheduled", icon: Clock, color: "text-amber-600" },
-  skipped: { label: "Skipped", icon: SkipForward, color: "text-amber-600" },
-  cancelled: { label: "Cancelled", icon: XCircle, color: "text-destructive" },
-} as const
 
 // ─── Overview tab ─────────────────────────────────────────────────────────────
 
@@ -503,9 +489,6 @@ function JobHistoryTab({ jobs, highlightJobId }: { jobs: Job[]; highlightJobId?:
           </thead>
           <tbody>
             {sorted.map((job) => {
-              const cfg =
-                JOB_STATUS_CONFIG[job.status] ?? JOB_STATUS_CONFIG.scheduled
-              const StatusIcon = cfg.icon
               const isHighlighted = job.id === highlightJobId
               return (
                 <tr
@@ -539,15 +522,7 @@ function JobHistoryTab({ jobs, highlightJobId }: { jobs: Job[]; highlightJobId?:
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "flex items-center gap-1.5 text-xs font-medium",
-                        cfg.color,
-                      )}
-                    >
-                      <StatusIcon className="h-3.5 w-3.5" />
-                      {cfg.label}
-                    </span>
+                    <JobStatusBadge status={job.status} />
                   </td>
                   <td className="px-4 py-3 text-right font-medium hidden lg:table-cell">
                     ${job.price}
