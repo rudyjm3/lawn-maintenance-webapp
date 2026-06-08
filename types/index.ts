@@ -68,7 +68,13 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   pricing_range_pct: 10,
 }
 
-export interface Business extends PricingSettings {
+export interface BusinessLocation {
+  operating_location: string | null
+  operating_lat: number | null
+  operating_lng: number | null
+}
+
+export interface Business extends PricingSettings, BusinessLocation {
   id: string
   business_name: string
   slug: string

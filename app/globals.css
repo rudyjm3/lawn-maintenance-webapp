@@ -138,4 +138,9 @@
   html {
     @apply font-sans;
   }
+
+  /* Scope Leaflet's internal z-indices so fixed overlays (dialogs, sheets) appear above the map */
+  .leaflet-container {
+    isolation: isolate;
+  }
 }

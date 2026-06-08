@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { z } from "zod"
-import { type PricingSettings, DEFAULT_PRICING_SETTINGS } from "@/types"
+import { type PricingSettings, DEFAULT_PRICING_SETTINGS, type BusinessLocation } from "@/types"
+import { geocodeAddress } from "@/app/actions/properties"
 
 const PricingSettingsSchema = z.object({
   pricing_sqft_per_min: z.coerce.number().min(1, "Must be at least 1"),
@@ -45,6 +46,77 @@ export async function savePricingSettings(
   revalidatePath("/settings")
   return { success: true, message: "Pricing settings saved." }
 }
+
+// ─── Business location ────────────────────────────────────────────────────────
+
+const BusinessLocationSchema = z.object({
+  operating_location: z.string().min(1, "Enter a city or area").max(200),
+})
+
+export type BusinessLocationActionState =
+  | { success: true; message: string; geocoded: boolean }
+  | { success: false; message: string }
+
+const EMPTY_LOCATION: BusinessLocation = {
+  operating_location: null,
+  operating_lat: null,
+  operating_lng: null,
+}
+
+export async function getBusinessLocation(): Promise<BusinessLocation> {
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { businessId } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return EMPTY_LOCATION
+
+  const { data } = await db
+    .from("businesses")
+    .select("operating_location, operating_lat, operating_lng")
+    .eq("id", businessId)
+    .single()
+
+  return data ?? EMPTY_LOCATION
+}
+
+export async function saveBusinessLocation(
+  values: { operating_location: string },
+): Promise<BusinessLocationActionState> {
+  const parsed = BusinessLocationSchema.safeParse(values)
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Validation error" }
+  }
+
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
+
+  const location = parsed.data.operating_location.trim()
+  const geo = await geocodeAddress(location)
+
+  const payload = geo.coordinates
+    ? { operating_location: location, operating_lat: geo.coordinates.lat, operating_lng: geo.coordinates.lng }
+    : { operating_location: location, operating_lat: null, operating_lng: null }
+
+  const { error } = await db.from("businesses").update(payload).eq("id", businessId)
+  if (error) return { success: false, message: error.message }
+
+  revalidatePath("/settings")
+  revalidatePath("/zones")
+
+  if (!geo.coordinates) {
+    return {
+      success: true,
+      message: `Location saved, but "${location}" could not be geocoded. Maps will use the US-center fallback until geocoding succeeds.`,
+      geocoded: false,
+    }
+  }
+  return { success: true, message: "Operating location saved.", geocoded: true }
+}
+
+// ─── Pricing settings ─────────────────────────────────────────────────────────
 
 export async function getPricingSettings(): Promise<PricingSettings> {
   const supabase = await createClient()

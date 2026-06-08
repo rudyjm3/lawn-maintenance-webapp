@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { GeocodePropertiesCard } from "@/components/settings/geocode-properties-card"
+import { BusinessLocationCard } from "@/components/settings/business-location-card"
 import { CollapsiblePricingSection } from "@/components/settings/collapsible-pricing-section"
-import { getPricingSettings } from "@/app/actions/settings"
+import { getPricingSettings, getBusinessLocation } from "@/app/actions/settings"
 
 export const metadata = { title: "Settings" }
 
@@ -12,7 +13,7 @@ export default async function SettingsPage() {
   const db = supabase as any
   const { businessId } = await getAuthenticatedBusinessId(supabase)
 
-  const [totalPropsResult, ungeocodedResult, pricingSettings] = await Promise.all([
+  const [totalPropsResult, ungeocodedResult, pricingSettings, businessLocation] = await Promise.all([
     db
       .from("properties")
       .select("id", { count: "exact", head: true })
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
       .eq("business_id", businessId ?? "")
       .is("lat", null),
     getPricingSettings(),
+    getBusinessLocation(),
   ])
 
   const geocodingConfigured =
@@ -39,6 +41,7 @@ export default async function SettingsPage() {
 
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-foreground">Map & Geocoding</h2>
+        <BusinessLocationCard current={businessLocation} />
         <GeocodePropertiesCard
           total={totalPropsResult.count ?? 0}
           ungeocoded={ungeocodedResult.count ?? 0}
