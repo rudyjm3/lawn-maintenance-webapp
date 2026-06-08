@@ -2,6 +2,7 @@
 
 import { createClient as createSupabaseClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
+import { fetchWeekForecast } from "@/lib/weather"
 
 export interface JobNotification {
   id: string
@@ -41,11 +42,21 @@ export interface EstimateNotification {
   client_name: string | null
 }
 
+export interface WeatherNotification {
+  id: string        // stable: "weather-YYYY-MM-DD"
+  date: string
+  label: string
+  icon: string
+  severity: "rain" | "severe"
+  jobCount: number
+}
+
 export interface NotificationPayload {
   jobs: JobNotification[]
   payments: PaymentNotification[]
   messages: MessageNotification[]
   estimates: EstimateNotification[]
+  weather: WeatherNotification[]
 }
 
 export async function fetchNotifications(): Promise<NotificationPayload> {
@@ -53,9 +64,9 @@ export async function fetchNotifications(): Promise<NotificationPayload> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
-  if (!businessId || bizError) return { jobs: [], payments: [], messages: [], estimates: [] }
+  if (!businessId || bizError) return { jobs: [], payments: [], messages: [], estimates: [], weather: [] }
 
-  const [logsResult, paymentsResult, messagesResult, estimatesResult] = await Promise.all([
+  const [logsResult, paymentsResult, messagesResult, estimatesResult, geoResult] = await Promise.all([
     db
       .from("activity_logs")
       .select("id, action_type, created_at, entity_id, user_id")
@@ -87,6 +98,14 @@ export async function fetchNotifications(): Promise<NotificationPayload> {
       .in("status", ["approved", "rejected"])
       .order("updated_at", { ascending: false })
       .limit(10),
+
+    db
+      .from("properties")
+      .select("lat, lng")
+      .eq("business_id", businessId)
+      .not("lat", "is", null)
+      .not("lng", "is", null)
+      .limit(50),
   ])
 
   // Resolve job details from activity_logs entity_ids
@@ -164,5 +183,51 @@ export async function fetchNotifications(): Promise<NotificationPayload> {
     client_name: e.client?.name ?? null,
   }))
 
-  return { jobs, payments, messages, estimates }
+  // Weather alerts
+  let weather: WeatherNotification[] = []
+  const geoProps = (geoResult.data ?? []) as { lat: number; lng: number }[]
+  if (geoProps.length > 0) {
+    const avgLat = geoProps.reduce((s, p) => s + p.lat, 0) / geoProps.length
+    const avgLng = geoProps.reduce((s, p) => s + p.lng, 0) / geoProps.length
+
+    const now = new Date()
+    const weekStart = new Date(now)
+    weekStart.setDate(now.getDate() - now.getDay())
+    weekStart.setHours(0, 0, 0, 0)
+    const weekEnd = new Date(weekStart.getTime() + 7 * 86_400_000)
+    const wsIso = weekStart.toISOString().slice(0, 10)
+    const weIso = weekEnd.toISOString().slice(0, 10)
+
+    const [forecast, weekJobsResult] = await Promise.all([
+      fetchWeekForecast(avgLat, avgLng),
+      db
+        .from("jobs")
+        .select("service_date")
+        .eq("business_id", businessId)
+        .gte("service_date", wsIso)
+        .lte("service_date", weIso)
+        .in("status", ["scheduled", "in_progress"]),
+    ])
+
+    const jobCountByDate = new Map<string, number>()
+    for (const j of (weekJobsResult.data ?? []) as { service_date: string | null }[]) {
+      if (j.service_date) jobCountByDate.set(j.service_date, (jobCountByDate.get(j.service_date) ?? 0) + 1)
+    }
+
+    weather = forecast
+      .slice(0, 7)
+      .filter((d) => (d.severity === "rain" || d.severity === "severe") && (jobCountByDate.get(d.date) ?? 0) > 0)
+      .map((d) => ({
+        id: `weather-${d.date}`,
+        date: d.date,
+        label: new Date(`${d.date}T12:00:00`).toLocaleDateString("en-US", {
+          weekday: "short", month: "short", day: "numeric",
+        }),
+        icon: d.icon,
+        severity: d.severity as "rain" | "severe",
+        jobCount: jobCountByDate.get(d.date) ?? 0,
+      }))
+  }
+
+  return { jobs, payments, messages, estimates, weather }
 }
