@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Building2,
   ClipboardList,
@@ -456,12 +456,19 @@ function ServicesTab({
 
 // ─── Job history tab ──────────────────────────────────────────────────────────
 
-function JobHistoryTab({ jobs }: { jobs: Job[] }) {
+function JobHistoryTab({ jobs, highlightJobId }: { jobs: Job[]; highlightJobId?: string }) {
+  const highlightRef = useRef<HTMLTableRowElement>(null)
   const sorted = [...jobs].sort((a, b) => {
     const dateA = a.service_date ? new Date(a.service_date).getTime() : 0
     const dateB = b.service_date ? new Date(b.service_date).getTime() : 0
     return dateB - dateA
   })
+
+  useEffect(() => {
+    if (!highlightJobId || !highlightRef.current) return
+    const el = highlightRef.current
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [highlightJobId])
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -499,10 +506,15 @@ function JobHistoryTab({ jobs }: { jobs: Job[] }) {
               const cfg =
                 JOB_STATUS_CONFIG[job.status] ?? JOB_STATUS_CONFIG.scheduled
               const StatusIcon = cfg.icon
+              const isHighlighted = job.id === highlightJobId
               return (
                 <tr
                   key={job.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  ref={isHighlighted ? highlightRef : undefined}
+                  className={cn(
+                    "border-b border-border last:border-0 hover:bg-muted/30 transition-colors",
+                    isHighlighted && "animate-highlight-fade outline outline-2 outline-amber-400 outline-offset-[-2px]"
+                  )}
                 >
                   <td className="px-4 py-3 text-muted-foreground">
                     {job.service_date
@@ -840,6 +852,7 @@ interface ClientDetailTabsProps {
   reviews: ReviewJob[]
   revenueSummary: { earned: number; collected: number; outstanding: number; paymentCount: number; lastPaymentDate: string | null }
   initialTab?: string
+  highlightJobId?: string
 }
 
 const VALID_TABS = new Set(["overview", "properties", "services", "history", "estimates", "invoices", "reviews", "activity", "notes"])
@@ -856,6 +869,7 @@ export function ClientDetailTabs({
   reviews,
   revenueSummary,
   initialTab,
+  highlightJobId,
 }: ClientDetailTabsProps) {
   const defaultTab = initialTab && VALID_TABS.has(initialTab) ? initialTab : "overview"
   return (
@@ -904,7 +918,7 @@ export function ClientDetailTabs({
       <TabsContent value="history">
         <div className="space-y-3">
           <RevenueSummaryStrip summary={revenueSummary} />
-          <JobHistoryTab jobs={jobs} />
+          <JobHistoryTab jobs={jobs} highlightJobId={highlightJobId} />
         </div>
       </TabsContent>
       <TabsContent value="estimates">

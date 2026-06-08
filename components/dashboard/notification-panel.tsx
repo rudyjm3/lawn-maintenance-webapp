@@ -108,7 +108,7 @@ export function NotificationPanel() {
                       key={job.id}
                       onClick={() => {
                         const dest = job.client_id
-                          ? `/clients/${job.client_id}?tab=history`
+                          ? `/clients/${job.client_id}?tab=history&jobId=${job.job_id}`
                           : "/jobs"
                         router.push(dest)
                         setOpen(false)

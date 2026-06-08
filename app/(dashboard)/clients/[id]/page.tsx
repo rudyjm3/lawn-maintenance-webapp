@@ -18,7 +18,7 @@ import type { Client, Property, Job, ServiceType, PropertyService, Communication
 
 interface PageProps {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<{ tab?: string; jobId?: string }>
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: PageProps) {
 
 export default async function ClientDetailPage({ params, searchParams }: PageProps) {
   const { id } = await params
-  const { tab: initialTab } = await searchParams
+  const { tab: initialTab, jobId: highlightJobId } = await searchParams
   const supabase = await createClient()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
@@ -207,6 +207,7 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
         invoices={invoices}
         reviews={reviews}
         initialTab={initialTab}
+        highlightJobId={highlightJobId}
         revenueSummary={{
           earned: revenueEarned,
           collected: revenueCollected,
