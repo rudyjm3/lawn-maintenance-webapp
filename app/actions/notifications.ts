@@ -66,6 +66,8 @@ export async function fetchNotifications(): Promise<NotificationPayload> {
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId || bizError) return { jobs: [], payments: [], messages: [], estimates: [], weather: [] }
 
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
   const [logsResult, paymentsResult, messagesResult, estimatesResult, geoResult] = await Promise.all([
     db
       .from("activity_logs")
@@ -73,6 +75,7 @@ export async function fetchNotifications(): Promise<NotificationPayload> {
       .eq("business_id", businessId)
       .eq("entity_type", "job")
       .in("action_type", ["completed", "skipped", "cancelled"])
+      .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
       .limit(20),
 
@@ -80,6 +83,7 @@ export async function fetchNotifications(): Promise<NotificationPayload> {
       .from("payments")
       .select("id, amount, payment_date, created_at, invoice_id, invoice:invoices(id, client:clients(id, name))")
       .eq("business_id", businessId)
+      .gte("created_at", cutoff)
       .order("created_at", { ascending: false })
       .limit(10),
 
@@ -88,6 +92,7 @@ export async function fetchNotifications(): Promise<NotificationPayload> {
       .select("id, message, sent_at, client_id, client:clients(id, name)")
       .eq("business_id", businessId)
       .eq("direction", "inbound")
+      .gte("sent_at", cutoff)
       .order("sent_at", { ascending: false })
       .limit(10),
 
@@ -96,6 +101,7 @@ export async function fetchNotifications(): Promise<NotificationPayload> {
       .select("id, status, updated_at, client_id, client:clients(id, name)")
       .eq("business_id", businessId)
       .in("status", ["approved", "rejected"])
+      .gte("updated_at", cutoff)
       .order("updated_at", { ascending: false })
       .limit(10),
 
