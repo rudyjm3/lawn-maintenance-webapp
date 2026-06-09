@@ -119,15 +119,16 @@ export function ZonesPanel({ zones, properties }: ZonesPanelProps) {
 
                 return (
                   <li key={zone.id}>
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={!!drawingZoneId && !isDrawing ? -1 : 0}
                       onClick={() => handleSelectZone(zone.id)}
-                      disabled={!!drawingZoneId && !isDrawing}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectZone(zone.id) } }}
+                      aria-pressed={isSelected}
                       className={cn(
-                        "group w-full px-4 py-3 text-left transition-colors",
-                        isSelected
-                          ? "bg-primary/5"
-                          : "hover:bg-muted/50",
-                        !!drawingZoneId && !isDrawing && "opacity-40 cursor-not-allowed",
+                        "group w-full cursor-pointer px-4 py-3 text-left transition-colors",
+                        isSelected ? "bg-primary/5" : "hover:bg-muted/50",
+                        !!drawingZoneId && !isDrawing && "opacity-40 cursor-not-allowed pointer-events-none",
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -183,7 +184,7 @@ export function ZonesPanel({ zones, properties }: ZonesPanelProps) {
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
-                    </button>
+                    </div>
                   </li>
                 )
               })}
