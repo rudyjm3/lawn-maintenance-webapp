@@ -13,9 +13,10 @@ import { cn } from "@/lib/utils"
 interface ZonesPanelProps {
   zones: ServiceZone[]
   properties: Property[]
+  businessCenter?: [number, number] | null
 }
 
-export function ZonesPanel({ zones, properties }: ZonesPanelProps) {
+export function ZonesPanel({ zones, properties, businessCenter }: ZonesPanelProps) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editingZone, setEditingZone] = useState<ServiceZone | undefined>(undefined)
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null)
@@ -123,8 +124,9 @@ export function ZonesPanel({ zones, properties }: ZonesPanelProps) {
                       role="button"
                       tabIndex={!!drawingZoneId && !isDrawing ? -1 : 0}
                       onClick={() => handleSelectZone(zone.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleSelectZone(zone.id) } }}
+                      onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); handleSelectZone(zone.id) } }}
                       aria-pressed={isSelected}
+                      aria-disabled={!!drawingZoneId && !isDrawing}
                       className={cn(
                         "group w-full cursor-pointer px-4 py-3 text-left transition-colors",
                         isSelected ? "bg-primary/5" : "hover:bg-muted/50",
@@ -210,6 +212,7 @@ export function ZonesPanel({ zones, properties }: ZonesPanelProps) {
           drawingZoneId={drawingZoneId}
           onPolygonComplete={handlePolygonComplete}
           onAssignProperty={handleAssignProperty}
+          businessCenter={businessCenter}
         />
       </div>
 

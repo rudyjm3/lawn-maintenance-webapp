@@ -94,7 +94,7 @@ async function geocodeWithGoogleApi(address: string): Promise<GeocodeResult> {
   }
 }
 
-async function geocodeAddress(address: string): Promise<GeocodeResult> {
+export async function geocodeAddress(address: string): Promise<GeocodeResult> {
   const rapidApiResult = await geocodeWithRapidApi(address)
   if (rapidApiResult.coordinates) return rapidApiResult
 

@@ -17,6 +17,7 @@ import { WeekSnapshot } from "@/components/dashboard/week-snapshot"
 import { RoutePreview } from "@/components/dashboard/route-preview"
 import { ActivityFeed } from "@/components/dashboard/activity-feed"
 import { WeatherAlertBanner, type AffectedDay } from "@/components/dashboard/weather-alert-banner"
+import { type DayWeather } from "@/lib/weather"
 import { Button } from "@/components/ui/button"
 import { addUtcDays, formatLocalDate, formatUtcDate, startOfWeekUtc } from "@/lib/dates"
 import { buildWeekSnapshot } from "@/lib/jobs"
@@ -193,11 +194,13 @@ export default async function DashboardPage() {
 
   const geoProps = (geoPropsResult.data ?? []) as { lat: number; lng: number }[]
   let weatherAlertDays: AffectedDay[] = []
+  let fullForecast: DayWeather[] = []
   if (geoProps.length > 0) {
     const avgLat = geoProps.reduce((s, p) => s + p.lat, 0) / geoProps.length
     const avgLng = geoProps.reduce((s, p) => s + p.lng, 0) / geoProps.length
     const forecast = await fetchWeekForecast(avgLat, avgLng)
-    weatherAlertDays = forecast.slice(0, 7)
+    fullForecast = forecast.slice(0, 7)
+    weatherAlertDays = fullForecast
       .filter((d) => d.severity === "rain" || d.severity === "severe")
       .map((d) => ({
         date: d.date,
@@ -281,7 +284,7 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <WeatherAlertBanner affectedDays={weatherAlertDays} />
+      <WeatherAlertBanner affectedDays={weatherAlertDays} forecast={fullForecast} />
 
       {(overbookedDays.length > 0 || unassignedCount > 0 || overdueCount > 0 || openLeadsCount > 0) && (
         <div className="flex flex-col gap-3 sm:flex-row">

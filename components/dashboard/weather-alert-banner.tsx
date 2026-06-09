@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { rescheduleJobsForDate } from "@/app/actions/jobs"
 import { toast } from "sonner"
+import { type DayWeather } from "@/lib/weather"
 
 export interface AffectedDay {
   date: string
@@ -122,9 +123,77 @@ function WeatherRescheduleModal({
   )
 }
 
-export function WeatherAlertBanner({ affectedDays }: { affectedDays: AffectedDay[] }) {
+const SEVERITY_BADGE: Record<string, string> = {
+  clear:  "bg-gray-100 text-gray-700",
+  watch:  "bg-yellow-100 text-yellow-700",
+  rain:   "bg-blue-100 text-blue-700",
+  severe: "bg-red-100 text-red-700",
+}
+
+function WeatherForecastModal({
+  open,
+  onOpenChange,
+  forecast,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  forecast: DayWeather[]
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>7-Day Forecast</DialogTitle>
+          <DialogDescription>Weather outlook for your service area this week.</DialogDescription>
+        </DialogHeader>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-xs text-muted-foreground">
+                <th className="py-2 pr-3 text-left font-medium">Day</th>
+                <th className="py-2 pr-3 text-left font-medium">Condition</th>
+                <th className="py-2 pr-3 text-right font-medium">High</th>
+                <th className="py-2 pr-3 text-right font-medium">Precip</th>
+                <th className="py-2 text-left font-medium">Severity</th>
+              </tr>
+            </thead>
+            <tbody>
+              {forecast.map((day) => {
+                const tempF = Math.round(day.tempMaxC * 9 / 5 + 32)
+                const precipIn = (day.precipMm / 25.4).toFixed(2)
+                const badgeClass = SEVERITY_BADGE[day.severity] ?? SEVERITY_BADGE.clear
+                const dayLabel = new Date(`${day.date}T12:00:00`).toLocaleDateString("en-US", {
+                  weekday: "short", month: "short", day: "numeric",
+                })
+                return (
+                  <tr key={day.date} className="border-b border-border/50 last:border-0">
+                    <td className="py-2 pr-3 font-medium">{day.icon} {dayLabel}</td>
+                    <td className="py-2 pr-3 text-muted-foreground">{day.label}</td>
+                    <td className="py-2 pr-3 text-right">{tempF}°F</td>
+                    <td className="py-2 pr-3 text-right">{precipIn}&quot;</td>
+                    <td className="py-2">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${badgeClass}`}>
+                        {day.severity}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export function WeatherAlertBanner({ affectedDays, forecast = [] }: { affectedDays: AffectedDay[]; forecast?: DayWeather[] }) {
   const [dismissed, setDismissed] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [forecastOpen, setForecastOpen] = useState(false)
 
   if (affectedDays.length === 0 || dismissed) return null
 
@@ -148,6 +217,16 @@ export function WeatherAlertBanner({ affectedDays }: { affectedDays: AffectedDay
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {forecast.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 border-amber-300 bg-amber-100 text-amber-800 hover:bg-amber-200 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200 dark:hover:bg-amber-900/60 text-xs"
+              onClick={() => setForecastOpen(true)}
+            >
+              View forecast
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -170,6 +249,11 @@ export function WeatherAlertBanner({ affectedDays }: { affectedDays: AffectedDay
         open={modalOpen}
         onOpenChange={setModalOpen}
         affectedDays={affectedDays}
+      />
+      <WeatherForecastModal
+        open={forecastOpen}
+        onOpenChange={setForecastOpen}
+        forecast={forecast}
       />
     </>
   )

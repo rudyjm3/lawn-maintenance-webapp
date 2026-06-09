@@ -1,8 +1,9 @@
 "use client"
 
 import { useTransition } from "react"
-import { Bell, Plus, Search } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { NotificationPanel } from "@/components/dashboard/notification-panel"
 import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
@@ -81,11 +82,7 @@ export function Topbar() {
         </DropdownMenu>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
-          <Bell className="h-4 w-4" />
-          {/* Unread badge — wire to real data later */}
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-        </Button>
+        <NotificationPanel />
 
         {/* User menu */}
         <DropdownMenu>

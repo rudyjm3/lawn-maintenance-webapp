@@ -11,9 +11,10 @@ import { type PricingSettings, DEFAULT_PRICING_SETTINGS } from "@/types"
 
 interface Props {
   settings: PricingSettings
+  onSaved?: () => void
 }
 
-export function PricingFormulaCard({ settings }: Props) {
+export function PricingFormulaCard({ settings, onSaved }: Props) {
   const [values, setValues] = useState<PricingSettings>(settings)
   const [isPending, startTransition] = useTransition()
 
@@ -27,6 +28,7 @@ export function PricingFormulaCard({ settings }: Props) {
       const result = await savePricingSettings(values)
       if (result.success) {
         toast.success(result.message)
+        onSaved?.()
       } else {
         toast.error(result.message)
       }
