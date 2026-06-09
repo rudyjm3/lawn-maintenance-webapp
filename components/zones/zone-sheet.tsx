@@ -81,7 +81,7 @@ export function ZoneSheet({ open, onOpenChange, zone, onCreated }: ZoneSheetProp
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col overflow-y-auto sm:max-w-md">
+      <SheetContent className="z-[2000] flex flex-col overflow-y-auto sm:max-w-md">
         <SheetHeader className="pb-2">
           <SheetTitle>{isEditing ? "Edit Zone" : "New Service Zone"}</SheetTitle>
           <SheetDescription>

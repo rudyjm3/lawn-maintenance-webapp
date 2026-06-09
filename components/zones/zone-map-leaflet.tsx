@@ -15,6 +15,7 @@ export interface ZoneMapProps {
   drawingZoneId: string | null
   onPolygonComplete: (zoneId: string, coords: [number, number][]) => void
   onAssignProperty: (propertyId: string, zoneId: string | null) => void
+  businessCenter?: [number, number] | null
 }
 
 // ─── Polygon overlays ─────────────────────────────────────────────────────────
@@ -211,6 +212,7 @@ export default function ZoneLeafletMap({
   drawingZoneId,
   onPolygonComplete,
   onAssignProperty,
+  businessCenter,
 }: ZoneMapProps) {
   const [vertices, setVertices] = useState<[number, number][]>([])
   const prevDrawingId = useRef<string | null>(null)
@@ -227,10 +229,13 @@ export default function ZoneLeafletMap({
 
   const center: [number, number] = (() => {
     const pts = properties.filter((p) => p.lat != null && p.lng != null)
-    if (pts.length === 0) return [39.5, -98.35]
-    const lat = pts.reduce((s, p) => s + p.lat!, 0) / pts.length
-    const lng = pts.reduce((s, p) => s + p.lng!, 0) / pts.length
-    return [lat, lng]
+    if (pts.length > 0) {
+      const lat = pts.reduce((s, p) => s + p.lat!, 0) / pts.length
+      const lng = pts.reduce((s, p) => s + p.lng!, 0) / pts.length
+      return [lat, lng]
+    }
+    if (businessCenter) return businessCenter
+    return [39.5, -98.35]
   })()
 
   function handleFinish() {

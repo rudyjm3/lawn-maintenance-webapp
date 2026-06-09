@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { GeocodePropertiesCard } from "@/components/settings/geocode-properties-card"
-import { PricingFormulaCard } from "@/components/settings/pricing-formula-card"
-import { getPricingSettings } from "@/app/actions/settings"
+import { BusinessLocationCard } from "@/components/settings/business-location-card"
+import { CollapsiblePricingSection } from "@/components/settings/collapsible-pricing-section"
+import { getPricingSettings, getBusinessLocation } from "@/app/actions/settings"
 
 export const metadata = { title: "Settings" }
 
@@ -12,7 +13,7 @@ export default async function SettingsPage() {
   const db = supabase as any
   const { businessId } = await getAuthenticatedBusinessId(supabase)
 
-  const [totalPropsResult, ungeocodedResult, pricingSettings] = await Promise.all([
+  const [totalPropsResult, ungeocodedResult, pricingSettings, businessLocation] = await Promise.all([
     db
       .from("properties")
       .select("id", { count: "exact", head: true })
@@ -23,6 +24,7 @@ export default async function SettingsPage() {
       .eq("business_id", businessId ?? "")
       .is("lat", null),
     getPricingSettings(),
+    getBusinessLocation(),
   ])
 
   const geocodingConfigured =
@@ -35,13 +37,11 @@ export default async function SettingsPage() {
         <p className="text-sm text-muted-foreground">Manage your account and integrations.</p>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-sm font-semibold text-foreground">Price Calculator</h2>
-        <PricingFormulaCard settings={pricingSettings} />
-      </div>
+      <CollapsiblePricingSection settings={pricingSettings} />
 
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-foreground">Map & Geocoding</h2>
+        <BusinessLocationCard current={businessLocation} />
         <GeocodePropertiesCard
           total={totalPropsResult.count ?? 0}
           ungeocoded={ungeocodedResult.count ?? 0}

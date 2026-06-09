@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react"
 import Link from "next/link"
-import { Search, Trash2 } from "lucide-react"
+import { ArrowRight, Search, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -155,18 +155,27 @@ export function EstimatesTable({ estimates }: Props) {
                     {new Date(est.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </td>
                   <td className="px-4 py-3">
-                    {est.status === "draft" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                        disabled={isPending}
-                        onClick={() => handleDelete(est.id, est.estimate_number)}
-                        title="Delete estimate"
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/estimates/${est.id}`}
+                        className="h-7 w-7 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-primary"
+                        title="View estimate"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                      {est.status === "draft" && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          disabled={isPending}
+                          onClick={() => handleDelete(est.id, est.estimate_number)}
+                          title="Delete estimate"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

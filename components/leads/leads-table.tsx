@@ -1,16 +1,15 @@
 "use client"
 
 import { useState, useMemo, useTransition } from "react"
-import { Search, UserPlus } from "lucide-react"
+import { Pencil, Search, UserPlus } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge"
 import { updateLeadStatus, convertLeadToClient } from "@/app/actions/leads"
 import { type LeadStatus } from "@/types"
@@ -224,26 +223,24 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <LeadStatusBadge status={lead.status} />
-                      <Select
-                        value={lead.status}
-                        onValueChange={(val) => handleStatusChange(lead.id, val as LeadStatus)}
-                        disabled={isPending}
-                      >
-                        <SelectTrigger
-                          size="sm"
-                          className="h-6 w-6 border-0 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-muted hover:bg-muted/80 rounded"
-                          aria-label="Change status"
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                            aria-label="Change status"
+                            disabled={isPending}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
                           {STATUS_OPTIONS.map(({ label, value }) => (
-                            <SelectItem key={value} value={value}>
+                            <DropdownMenuItem key={value} onClick={() => handleStatusChange(lead.id, value as LeadStatus)}>
                               {label}
-                            </SelectItem>
+                            </DropdownMenuItem>
                           ))}
-                        </SelectContent>
-                      </Select>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">

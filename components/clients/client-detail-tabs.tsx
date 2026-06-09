@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import {
   Building2,
   ClipboardList,
@@ -9,10 +9,6 @@ import {
   PawPrint,
   Ruler,
   FileText,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  SkipForward,
   Pencil,
   Plus,
   Mail,
@@ -33,21 +29,11 @@ import { type Client, type Property, type Job, type ServiceType, type PropertySe
 
 type ReviewJob = { id: string; title: string | null; service_date: string | null; review_rating: number | null; review_text: string | null; review_submitted_at: string | null }
 import { EstimatesTable } from "@/components/estimates/estimates-table"
+import { JobStatusBadge } from "@/components/jobs/job-status-badge"
 import { InvoicesTable } from "@/components/invoices/invoices-table"
 import { logCommunication } from "@/app/actions/communications"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-
-// ─── Job status display ────────────────────────────────────────────────────────
-
-const JOB_STATUS_CONFIG = {
-  completed: { label: "Completed", icon: CheckCircle2, color: "text-emerald-600" },
-  in_progress: { label: "In Progress", icon: Clock, color: "text-blue-600" },
-  scheduled: { label: "Scheduled", icon: Clock, color: "text-muted-foreground" },
-  unscheduled: { label: "Unscheduled", icon: Clock, color: "text-amber-600" },
-  skipped: { label: "Skipped", icon: SkipForward, color: "text-amber-600" },
-  cancelled: { label: "Cancelled", icon: XCircle, color: "text-destructive" },
-} as const
 
 // ─── Overview tab ─────────────────────────────────────────────────────────────
 
@@ -456,12 +442,19 @@ function ServicesTab({
 
 // ─── Job history tab ──────────────────────────────────────────────────────────
 
-function JobHistoryTab({ jobs }: { jobs: Job[] }) {
+function JobHistoryTab({ jobs, highlightJobId }: { jobs: Job[]; highlightJobId?: string }) {
+  const highlightRef = useRef<HTMLTableRowElement>(null)
   const sorted = [...jobs].sort((a, b) => {
     const dateA = a.service_date ? new Date(a.service_date).getTime() : 0
     const dateB = b.service_date ? new Date(b.service_date).getTime() : 0
     return dateB - dateA
   })
+
+  useEffect(() => {
+    if (!highlightJobId || !highlightRef.current) return
+    const el = highlightRef.current
+    el.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [highlightJobId])
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -496,13 +489,15 @@ function JobHistoryTab({ jobs }: { jobs: Job[] }) {
           </thead>
           <tbody>
             {sorted.map((job) => {
-              const cfg =
-                JOB_STATUS_CONFIG[job.status] ?? JOB_STATUS_CONFIG.scheduled
-              const StatusIcon = cfg.icon
+              const isHighlighted = job.id === highlightJobId
               return (
                 <tr
                   key={job.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  ref={isHighlighted ? highlightRef : undefined}
+                  className={cn(
+                    "border-b border-border last:border-0 hover:bg-muted/30 transition-colors",
+                    isHighlighted && "animate-highlight-fade outline outline-2 outline-amber-400 outline-offset-[-2px]"
+                  )}
                 >
                   <td className="px-4 py-3 text-muted-foreground">
                     {job.service_date
@@ -527,15 +522,7 @@ function JobHistoryTab({ jobs }: { jobs: Job[] }) {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={cn(
-                        "flex items-center gap-1.5 text-xs font-medium",
-                        cfg.color,
-                      )}
-                    >
-                      <StatusIcon className="h-3.5 w-3.5" />
-                      {cfg.label}
-                    </span>
+                    <JobStatusBadge status={job.status} />
                   </td>
                   <td className="px-4 py-3 text-right font-medium hidden lg:table-cell">
                     ${job.price}
@@ -558,20 +545,21 @@ function RevenueSummaryStrip({
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
       {[
-        { label: "Revenue Earned", value: `$${summary.earned.toFixed(2)}` },
-        { label: "Revenue Collected", value: `$${summary.collected.toFixed(2)}` },
-        { label: "Outstanding", value: `$${summary.outstanding.toFixed(2)}` },
-        { label: "Payments", value: String(summary.paymentCount) },
+        { label: "Revenue Earned",    value: `$${summary.earned.toFixed(2)}`,     color: "bg-emerald-50 border-emerald-200 text-emerald-700" },
+        { label: "Revenue Collected", value: `$${summary.collected.toFixed(2)}`,  color: "bg-sky-50 border-sky-200 text-sky-700" },
+        { label: "Outstanding",       value: `$${summary.outstanding.toFixed(2)}`,color: "bg-amber-50 border-amber-200 text-amber-700" },
+        { label: "Payments",          value: String(summary.paymentCount),         color: "bg-violet-50 border-violet-200 text-violet-700" },
         {
           label: "Last Payment",
           value: summary.lastPaymentDate
             ? new Date(`${summary.lastPaymentDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
             : "—",
+          color: "border-border bg-card",
         },
       ].map((card) => (
-        <div key={card.label} className="rounded-xl border border-border bg-card p-3">
-          <p className="text-xs text-muted-foreground">{card.label}</p>
-          <p className="text-sm font-semibold text-foreground mt-1">{card.value}</p>
+        <div key={card.label} className={`rounded-xl border p-3 ${card.color}`}>
+          <p className="text-xs opacity-70">{card.label}</p>
+          <p className="text-sm font-semibold mt-1">{card.value}</p>
         </div>
       ))}
     </div>
@@ -838,7 +826,11 @@ interface ClientDetailTabsProps {
   invoices: Invoice[]
   reviews: ReviewJob[]
   revenueSummary: { earned: number; collected: number; outstanding: number; paymentCount: number; lastPaymentDate: string | null }
+  initialTab?: string
+  highlightJobId?: string
 }
+
+const VALID_TABS = new Set(["overview", "properties", "services", "history", "estimates", "invoices", "reviews", "activity", "notes"])
 
 export function ClientDetailTabs({
   client,
@@ -851,9 +843,12 @@ export function ClientDetailTabs({
   invoices,
   reviews,
   revenueSummary,
+  initialTab,
+  highlightJobId,
 }: ClientDetailTabsProps) {
+  const defaultTab = initialTab && VALID_TABS.has(initialTab) ? initialTab : "overview"
   return (
-    <Tabs defaultValue="overview" className="space-y-5">
+    <Tabs defaultValue={defaultTab} className="space-y-5">
       <TabsList className="border-b border-border bg-transparent p-0 h-auto rounded-none gap-0">
         {[
           { value: "overview", label: "Overview" },
@@ -898,7 +893,7 @@ export function ClientDetailTabs({
       <TabsContent value="history">
         <div className="space-y-3">
           <RevenueSummaryStrip summary={revenueSummary} />
-          <JobHistoryTab jobs={jobs} />
+          <JobHistoryTab jobs={jobs} highlightJobId={highlightJobId} />
         </div>
       </TabsContent>
       <TabsContent value="estimates">
