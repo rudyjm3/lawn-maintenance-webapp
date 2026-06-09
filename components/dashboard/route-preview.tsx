@@ -4,8 +4,13 @@ import { MapPin, CheckCircle2, Clock, Circle } from "lucide-react"
 import { formatDuration } from "@/lib/dates"
 import type { Route, RouteStop, Job } from "@/types"
 
+type PreviewRoute = Route & {
+  crew?: { name?: string | null; color?: string | null } | null
+  stops: (RouteStop & { job: Job })[]
+}
+
 interface RoutePreviewProps {
-  route: (Route & { stops: (RouteStop & { job: Job })[] }) | null
+  route: PreviewRoute | null
 }
 
 export function RoutePreview({ route }: RoutePreviewProps) {
@@ -31,11 +36,21 @@ export function RoutePreview({ route }: RoutePreviewProps) {
 
   const preview = route.stops.slice(0, 5)
   const driveMin = route.total_drive_min ?? 0
+  const crewColor = route.crew?.color ?? null
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div
+      className="rounded-xl border border-border bg-card p-5"
+      style={crewColor ? { borderLeftColor: crewColor, borderLeftWidth: "4px" } : undefined}
+    >
       <div className="mb-4 flex items-start justify-between">
-        <Link href={`/routes/${route.id}`} className="text-sm font-semibold text-foreground hover:underline">
+        <Link href={`/routes/${route.id}`} className="flex items-center gap-2 text-sm font-semibold text-foreground hover:underline">
+          {crewColor && (
+            <span
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: crewColor }}
+            />
+          )}
           {route.crew?.name ?? "Unassigned"} — Today&apos;s Route
         </Link>
         <span className={cn(

@@ -188,6 +188,9 @@ export async function updateJobSchedule(
 
   if (error) return { success: false, message: error.message }
 
+  // Clear route stops so stale crew assignments don't persist after a reschedule
+  await db.from("route_stops").delete().eq("job_id", jobId)
+
   revalidatePath("/jobs")
   revalidatePath("/schedule")
   revalidatePath("/dashboard")

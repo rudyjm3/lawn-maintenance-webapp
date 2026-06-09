@@ -1,6 +1,6 @@
 import { computeOccurrences } from "@/lib/scheduling/recurrence"
 import { addUtcDays, formatLocalDate, formatUtcDate, parseUtcDate } from "@/lib/dates"
-import type { Job, RecurrenceRule, ScheduleException, ServiceType, WeekDaySnapshot } from "@/types"
+import type { Crew, Job, RecurrenceRule, ScheduleException, ServiceType, WeekDaySnapshot } from "@/types"
 
 export const PLANNER_CAPACITY_MINUTES = 480
 
@@ -42,12 +42,19 @@ export function normalizeJobRow(row: Record<string, unknown>): Job {
     (row.property_service as { service_type?: ServiceType | null } | null | undefined) ??
     (row.property_services as { service_type?: ServiceType | null } | null | undefined)
 
+  // Extract crew from route_stops[0] → route → crew when not already on the row
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const crewFromRoute = (row.route_stops as any)?.[0]?.route?.crew as Crew | null | undefined
+
   return {
     ...(row as unknown as Job),
     service_type:
       (row.service_type as ServiceType | undefined) ??
       propertyService?.service_type ??
       undefined,
+    crew:
+      (row.crew as Crew | undefined) ??
+      (crewFromRoute ?? undefined),
   }
 }
 

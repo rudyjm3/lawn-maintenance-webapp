@@ -34,6 +34,8 @@ export function JobChip({
   const durationLabel =
     durationH > 0 ? `${durationH}h${durationM > 0 ? ` ${durationM}m` : ""}` : `${durationM}m`
 
+  const crewColor = job.crew?.color ?? null
+
   return (
     <div
       draggable={draggable}
@@ -44,6 +46,7 @@ export function JobChip({
         draggable && "cursor-grab active:cursor-grabbing hover:opacity-90",
         style,
       )}
+      style={crewColor ? { borderLeftColor: crewColor, borderLeftWidth: "3px" } : undefined}
     >
       <p className="truncate font-medium leading-tight">{job.client?.name ?? "Unknown client"}</p>
       {!compact && (

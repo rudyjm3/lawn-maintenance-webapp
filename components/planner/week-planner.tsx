@@ -275,7 +275,7 @@ export function WeekPlanner({ initialDays, initialUnscheduled, weatherByDate = {
       setAllJobs((prev) =>
         prev.map((job) =>
           job.id === jobId
-            ? { ...job, service_date: targetDate, status: targetDate ? "scheduled" : "unscheduled" }
+            ? { ...job, service_date: targetDate, status: targetDate ? "scheduled" : "unscheduled", crew: undefined }
             : job,
         ),
       )
