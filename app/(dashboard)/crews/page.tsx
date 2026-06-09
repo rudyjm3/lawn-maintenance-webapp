@@ -110,7 +110,10 @@ export default async function CrewsPage() {
         </TabsContent>
 
         <TabsContent value="members" className="mt-4 space-y-4">
-          <MembersTable members={members} />
+          <MembersTable
+            members={members}
+            availableCrews={crews.map((c) => ({ id: c.id, name: c.name, color: c.color ?? null, is_active: c.is_active }))}
+          />
         </TabsContent>
       </Tabs>
     </div>

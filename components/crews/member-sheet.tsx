@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
-import { Pencil, Users, X } from "lucide-react"
+import { Pencil, Plus, Users, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,7 +25,7 @@ import {
   SheetFooter,
   SheetClose,
 } from "@/components/ui/sheet"
-import { saveUser, removeFromCrew } from "@/app/actions/users"
+import { saveUser, removeFromCrew, addToCrew } from "@/app/actions/users"
 import type { UserRole } from "@/types"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,10 +47,18 @@ export interface MemberWithCrews {
   }[]
 }
 
+export interface AvailableCrew {
+  id: string
+  name: string
+  color: string | null
+  is_active: boolean
+}
+
 interface MemberSheetProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   member?: MemberWithCrews
+  availableCrews?: AvailableCrew[]
 }
 
 interface MemberFormValues {
@@ -70,10 +78,13 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
+export function MemberSheet({ open, onOpenChange, member, availableCrews = [] }: MemberSheetProps) {
   const [isSubmitting, setIsSubmitting]     = useState(false)
   const [removingCrewId, setRemovingCrewId] = useState<string | null>(null)
   const [localCrews, setLocalCrews]         = useState<MemberWithCrews["crews"]>([])
+  const [addingCrew, setAddingCrew]         = useState(false)
+  const [selectedCrewId, setSelectedCrewId] = useState<string>("")
+  const [addAsLead, setAddAsLead]           = useState(false)
 
   const {
     register,
@@ -101,6 +112,9 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
       email:      member.email ?? "",
     })
     setLocalCrews(member.crews)
+    setAddingCrew(false)
+    setSelectedCrewId("")
+    setAddAsLead(false)
   }, [open, member, reset])
 
   async function handleRemoveFromCrew(crewId: string) {
@@ -113,6 +127,28 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
       return
     }
     setLocalCrews((prev) => prev.filter((c) => c.id !== crewId))
+    toast.success(result.message)
+  }
+
+  async function handleAddToCrew() {
+    if (!member || !selectedCrewId) return
+    setIsSubmitting(true)
+    const result = await addToCrew(member.id, selectedCrewId, addAsLead)
+    setIsSubmitting(false)
+    if (!result.success) {
+      toast.error(result.message)
+      return
+    }
+    const crew = availableCrews.find((c) => c.id === selectedCrewId)
+    if (crew) {
+      setLocalCrews((prev) => [
+        ...prev,
+        { id: crew.id, name: crew.name, is_active: crew.is_active, is_lead: addAsLead, color: crew.color },
+      ])
+    }
+    setAddingCrew(false)
+    setSelectedCrewId("")
+    setAddAsLead(false)
     toast.success(result.message)
   }
 
@@ -141,6 +177,8 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
   }
 
   const activeCrews = localCrews
+  const assignedCrewIds = new Set(localCrews.map((c) => c.id))
+  const unassignedCrews = availableCrews.filter((c) => c.is_active && !assignedCrewIds.has(c.id))
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -238,10 +276,23 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
 
           {/* Crew assignments */}
           <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <Label>Crew assignments</Label>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <Label>Crew assignments</Label>
+              </div>
+              {!addingCrew && unassignedCrews.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setAddingCrew(true)}
+                  className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add to crew
+                </button>
+              )}
             </div>
+
             {activeCrews.length === 0 ? (
               <div className="rounded-lg border border-dashed border-border px-3 py-3 text-center">
                 <p className="text-sm text-muted-foreground">Not assigned to any crew</p>
@@ -272,6 +323,58 @@ export function MemberSheet({ open, onOpenChange, member }: MemberSheetProps) {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {addingCrew && (
+              <div className="flex flex-col gap-2 rounded-lg border border-border px-3 py-3">
+                <Select value={selectedCrewId} onValueChange={setSelectedCrewId}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select a crew…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unassignedCrews.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: c.color ?? "#6b7280" }}
+                          />
+                          {c.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="add-as-lead"
+                      checked={addAsLead}
+                      onCheckedChange={setAddAsLead}
+                    />
+                    <Label htmlFor="add-as-lead" className="text-sm font-normal">Add as crew lead</Label>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setAddingCrew(false); setSelectedCrewId(""); setAddAsLead(false) }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={!selectedCrewId || isSubmitting}
+                      onClick={handleAddToCrew}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

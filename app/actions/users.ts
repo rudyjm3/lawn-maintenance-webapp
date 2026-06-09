@@ -93,3 +93,33 @@ export async function removeFromCrew(userId: string, crewId: string): Promise<Us
   revalidatePath("/crews")
   return { success: true, message: "Removed from crew." }
 }
+
+export async function addToCrew(
+  userId: string,
+  crewId: string,
+  isLead: boolean,
+): Promise<UserActionState> {
+  if (!userId || !crewId) return { success: false, message: "Invalid parameters." }
+
+  const supabase = await createSupabaseClient()
+  const { businessId, error: businessError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: businessError ?? "Not authenticated." }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+
+  const { error } = await db.from("crew_members").insert({
+    user_id:     userId,
+    crew_id:     crewId,
+    is_lead:     isLead,
+    business_id: businessId,
+  })
+
+  if (error) {
+    if (error.code === "23505") return { success: false, message: "Member is already in that crew." }
+    return { success: false, message: error.message }
+  }
+
+  revalidatePath("/crews")
+  return { success: true, message: "Added to crew." }
+}

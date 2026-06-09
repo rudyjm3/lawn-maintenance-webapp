@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Pencil, CircleCheck, CircleOff, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { MemberSheet, type MemberWithCrews } from "@/components/crews/member-sheet"
+import { MemberSheet, type MemberWithCrews, type AvailableCrew } from "@/components/crews/member-sheet"
 
 const ROLE_LABELS: Record<string, string> = {
   owner:       "Owner",
@@ -14,9 +14,10 @@ const ROLE_LABELS: Record<string, string> = {
 
 interface MembersTableProps {
   members: MemberWithCrews[]
+  availableCrews?: AvailableCrew[]
 }
 
-export function MembersTable({ members }: MembersTableProps) {
+export function MembersTable({ members, availableCrews = [] }: MembersTableProps) {
   const [sheetOpen, setSheetOpen]         = useState(false)
   const [editingMember, setEditingMember] = useState<MemberWithCrews | undefined>(undefined)
 
@@ -138,6 +139,7 @@ export function MembersTable({ members }: MembersTableProps) {
         open={sheetOpen}
         onOpenChange={(open) => { setSheetOpen(open); if (!open) setEditingMember(undefined) }}
         member={editingMember}
+        availableCrews={availableCrews}
       />
     </>
   )
