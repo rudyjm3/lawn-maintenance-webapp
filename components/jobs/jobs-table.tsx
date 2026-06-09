@@ -331,6 +331,7 @@ export function JobsTable({
                   </button>
                 </TableHead>
                 <TableHead className="px-4">Status</TableHead>
+                <TableHead className="px-4">Crew</TableHead>
                 <TableHead className="px-4">Duration</TableHead>
                 <TableHead className="px-4">Price</TableHead>
                 <TableHead className="w-10" />
@@ -341,7 +342,7 @@ export function JobsTable({
                 const displayTitle = job.title || getJobServiceLabel(job)
                 const hasCustomTitle = !!job.title
                 const isExpanded = expandedJobId === job.id
-                const colSpan = 8
+                const colSpan = 9
 
                 return (
                   <Fragment key={job.id}>
@@ -379,6 +380,18 @@ export function JobsTable({
                       </TableCell>
                       <TableCell className="px-4 py-3">
                         <JobStatusBadge status={job.status} />
+                      </TableCell>
+                      <TableCell className="px-4 py-3">
+                        {job.crew ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                            style={{ backgroundColor: job.crew.color ?? "#6b7280" }}
+                          >
+                            {job.crew.name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground/50">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-muted-foreground">
                         {job.estimated_duration_min} min

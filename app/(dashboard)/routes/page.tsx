@@ -35,7 +35,7 @@ export default async function RoutesPage() {
   const [routesResult, crewsResult] = await Promise.all([
     db
       .from("routes")
-      .select("id, route_date, total_job_min, total_drive_min, is_locked, crew:crews(id, name), route_stops(id)")
+      .select("id, route_date, total_job_min, total_drive_min, is_locked, crew:crews(id, name, color), route_stops(id)")
       .gte("route_date", startIso)
       .lte("route_date", endIso)
       .order("route_date", { ascending: true }),
@@ -47,7 +47,7 @@ export default async function RoutesPage() {
   ])
 
   const { data, error } = routesResult
-  const crews = (crewsResult.data ?? []) as { id: string; name: string }[]
+  const crews = (crewsResult.data ?? []) as { id: string; name: string; color?: string | null }[]
 
   if (error) {
     return (
@@ -95,14 +95,24 @@ export default async function RoutesPage() {
               </tr>
             </thead>
             <tbody>
-              {routes.map((route: { id: string; route_date: string; total_job_min: number; total_drive_min: number; is_locked: boolean; crew: { name: string } | null; route_stops: { id: string }[] }) => (
+              {routes.map((route: { id: string; route_date: string; total_job_min: number; total_drive_min: number; is_locked: boolean; crew: { name: string; color?: string | null } | null; route_stops: { id: string }[] }) => (
                 <tr key={route.id} className="border-t border-border hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-3">
                     <Link href={`/routes/${route.id}`} className="font-medium hover:underline">
                       {formatDate(route.route_date)}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">{route.crew?.name ?? "Unassigned"}</td>
+                  <td className="px-4 py-3">
+                    <span className="flex items-center gap-2">
+                      {route.crew?.color && (
+                        <span
+                          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: route.crew.color }}
+                        />
+                      )}
+                      {route.crew?.name ?? "Unassigned"}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">{route.route_stops?.length ?? 0}</td>
                   <td className="px-4 py-3">{route.total_job_min > 0 ? formatDuration(route.total_job_min) : "—"}</td>
                   <td className="px-4 py-3">{route.total_drive_min > 0 ? formatDuration(route.total_drive_min) : "—"}</td>

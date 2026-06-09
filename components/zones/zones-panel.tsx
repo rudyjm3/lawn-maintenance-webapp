@@ -124,14 +124,13 @@ export function ZonesPanel({ zones, properties, businessCenter }: ZonesPanelProp
                       role="button"
                       tabIndex={!!drawingZoneId && !isDrawing ? -1 : 0}
                       onClick={() => handleSelectZone(zone.id)}
-                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleSelectZone(zone.id) }}
+                      onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); handleSelectZone(zone.id) } }}
+                      aria-pressed={isSelected}
                       aria-disabled={!!drawingZoneId && !isDrawing}
                       className={cn(
-                        "group w-full px-4 py-3 text-left transition-colors",
-                        isSelected
-                          ? "bg-primary/5"
-                          : "hover:bg-muted/50",
-                        !!drawingZoneId && !isDrawing && "opacity-40 cursor-not-allowed",
+                        "group w-full cursor-pointer px-4 py-3 text-left transition-colors",
+                        isSelected ? "bg-primary/5" : "hover:bg-muted/50",
+                        !!drawingZoneId && !isDrawing && "opacity-40 cursor-not-allowed pointer-events-none",
                       )}
                     >
                       <div className="flex items-center gap-2">

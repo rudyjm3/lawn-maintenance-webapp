@@ -18,7 +18,7 @@ export default async function JobsPage({ searchParams }: PageProps) {
   const [jobsResult, clientsResult, propertiesResult] = await Promise.all([
     db
       .from("jobs")
-      .select("*, client:clients(*), property:properties(*), property_service:property_services(*, service_type:service_types(*))")
+      .select("*, client:clients(*), property:properties(*), property_service:property_services(*, service_type:service_types(*)), route_stops(stop_order, route:routes(crew:crews(id, name, color)))")
       .order("created_at", { ascending: false }),
     db.from("clients").select("*").order("name", { ascending: true }),
     db.from("properties").select("*").order("address", { ascending: true }),

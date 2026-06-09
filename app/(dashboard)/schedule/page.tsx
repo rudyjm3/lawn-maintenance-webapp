@@ -28,7 +28,7 @@ export default async function SchedulePage({
   const [scheduledJobsResult, unscheduledJobsResult, propertiesResult] = await Promise.all([
     db
       .from("jobs")
-      .select("*, client:clients(*), property:properties(*), property_service:property_services(*, service_type:service_types(*)), route_stops(stop_order)")
+      .select("*, client:clients(*), property:properties(*), property_service:property_services(*, service_type:service_types(*)), route_stops(stop_order, route:routes(crew:crews(id, name, color)))")
       .gte("service_date", formatUtcDate(rangeStart))
       .lte("service_date", formatUtcDate(rangeEnd))
       .eq("status", "scheduled"),
