@@ -35,7 +35,7 @@ type JobRow = Job & {
 }
 
 type TodayRoute = Route & {
-  crew?: { name: string | null } | null
+  crew?: { name: string | null; color?: string | null } | null
   stops: (RouteStop & { job: JobRow })[]
 }
 
@@ -125,7 +125,7 @@ export default async function DashboardPage() {
       .from("routes")
       .select(`
         *,
-        crew:crews(name),
+        crew:crews(name, color),
         stops:route_stops(
           *,
           job:jobs(
