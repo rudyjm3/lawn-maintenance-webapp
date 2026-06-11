@@ -9,6 +9,7 @@ import {
   Building2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { SendEmailDialog } from "@/components/clients/send-email-dialog"
 import { normalizeJobRows } from "@/lib/jobs"
 import { ClientStatusBadge } from "@/components/clients/client-status-badge"
 import { ClientDetailTabs } from "@/components/clients/client-detail-tabs"
@@ -172,12 +173,11 @@ export default async function ClientDetailPage({ params, searchParams }: PagePro
               </Button>
             )}
             {(client as Client).email && (
-              <Button variant="outline" size="sm" asChild>
-                <a href={`mailto:${(client as Client).email}`}>
-                  <Mail className="mr-1.5 h-3.5 w-3.5" />
-                  Email
-                </a>
-              </Button>
+              <SendEmailDialog
+                clientId={id}
+                clientName={(client as Client).name}
+                clientEmail={(client as Client).email!}
+              />
             )}
             <Button variant="outline" size="sm" asChild>
               <Link href={`/jobs?client=${id}&new=1`}>

@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/dashboard/sidebar"
 import { Topbar } from "@/components/dashboard/topbar"
+import { SwRegisterDashboard } from "@/components/dashboard/sw-register-dashboard"
 
 export default function DashboardLayout({
   children,
@@ -8,6 +9,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <SwRegisterDashboard />
       {/* Left sidebar */}
       <Sidebar />
 

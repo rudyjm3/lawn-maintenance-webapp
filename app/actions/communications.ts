@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { z } from "zod"
+import { notifyBusiness } from "@/lib/push/notify-business"
 
 export type CommActionState =
   | { success: true; message: string }
@@ -47,6 +48,20 @@ export async function logCommunication(values: {
   })
 
   if (error) return { success: false, message: error.message }
+
+  // Push notification to owner when a client sends an inbound message
+  if (parsed.data.direction === "inbound") {
+    const { data: clientRow } = await (db as any)
+      .from("clients")
+      .select("name")
+      .eq("id", parsed.data.client_id)
+      .single()
+    notifyBusiness(businessId, {
+      title: "New message",
+      body: `${clientRow?.name ?? "A client"}: ${parsed.data.message.slice(0, 100)}`,
+      url: `/clients/${parsed.data.client_id}?tab=activity`,
+    }).catch(() => {})
+  }
 
   revalidatePath(`/clients/${parsed.data.client_id}`)
   return { success: true, message: "Communication logged." }
