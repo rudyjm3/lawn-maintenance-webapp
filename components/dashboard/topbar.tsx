@@ -4,6 +4,7 @@ import { useTransition } from "react"
 import { Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { NotificationPanel } from "@/components/dashboard/notification-panel"
+import { PushEnableButton } from "@/components/dashboard/push-enable-button"
 import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
@@ -80,6 +81,9 @@ export function Topbar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Push notification toggle */}
+        <PushEnableButton />
 
         {/* Notifications */}
         <NotificationPanel />
