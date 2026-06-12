@@ -45,3 +45,26 @@ export function formatTime(iso: string | null, fallback = "--"): string {
   if (!iso) return fallback
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 }
+
+// Convert a route date + minutes-since-midnight to a proper UTC ISO string,
+// accounting for the business timezone so the timestamp displays correctly in
+// the browser's local time (which matches the business timezone for single-location crews).
+export function localMinsToUTCISO(routeDate: string, minutesSinceMidnight: number, timezone: string): string {
+  const h = Math.floor(minutesSinceMidnight / 60)
+  const m = minutesSinceMidnight % 60
+  const pad = (n: number) => String(n).padStart(2, "0")
+  // Naive guess: treat the local time as UTC
+  const naive = new Date(`${routeDate}T${pad(h)}:${pad(m)}:00Z`)
+  // What time does this UTC moment show in the target timezone?
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(naive)
+  const tzH = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0") % 24
+  const tzM = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0")
+  // Shift the naive UTC by the difference between desired local time and actual local time
+  const diffMs = ((h * 60 + m) - (tzH * 60 + tzM)) * 60_000
+  return new Date(naive.getTime() + diffMs).toISOString()
+}

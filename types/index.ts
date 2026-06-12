@@ -68,13 +68,27 @@ export const DEFAULT_PRICING_SETTINGS: PricingSettings = {
   pricing_range_pct: 10,
 }
 
+export interface WorkScheduleSettings {
+  schedule_start_time: string          // "HH:MM" — workday start
+  schedule_end_time: string            // "HH:MM" — workday end
+  schedule_lunch_start_time: string    // "HH:MM" — lunch break start
+  schedule_lunch_duration_min: number  // 0 = no break
+}
+
+export const DEFAULT_WORK_SCHEDULE: WorkScheduleSettings = {
+  schedule_start_time: "08:00",
+  schedule_end_time: "17:00",
+  schedule_lunch_start_time: "12:00",
+  schedule_lunch_duration_min: 60,
+}
+
 export interface BusinessLocation {
   operating_location: string | null
   operating_lat: number | null
   operating_lng: number | null
 }
 
-export interface Business extends PricingSettings, BusinessLocation {
+export interface Business extends PricingSettings, WorkScheduleSettings, BusinessLocation {
   id: string
   business_name: string
   slug: string

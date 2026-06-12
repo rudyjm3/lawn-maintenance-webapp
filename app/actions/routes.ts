@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { getSequentialDriveTimes } from "@/lib/routing"
+import { localMinsToUTCISO } from "@/lib/dates"
+import { DEFAULT_WORK_SCHEDULE } from "@/types"
 import { z } from "zod"
 
 export type RouteActionState =
@@ -262,29 +264,47 @@ export async function recalculateDriveTimes(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
 
-  // Fetch stops ordered by stop_order, with job duration and property coordinates
-  const { data: stops, error: stopsError } = await db
-    .from("route_stops")
-    .select(`
-      id,
-      stop_order,
-      job:jobs(
-        estimated_duration_min,
-        property:properties(lat, lng)
-      )
-    `)
-    .eq("route_id", routeId)
-    .eq("business_id", businessId)
-    .order("stop_order", { ascending: true })
+  // Fetch route date and business timezone in parallel with stops
+  const [routeRes, scheduleRes, stopsRes] = await Promise.all([
+    db
+      .from("routes")
+      .select("route_date")
+      .eq("id", routeId)
+      .eq("business_id", businessId)
+      .single(),
+    db
+      .from("businesses")
+      .select("timezone, schedule_start_time, schedule_end_time, schedule_lunch_start_time, schedule_lunch_duration_min")
+      .eq("id", businessId)
+      .single(),
+    db
+      .from("route_stops")
+      .select(`
+        id,
+        stop_order,
+        job:jobs(
+          estimated_duration_min,
+          property:properties(lat, lng)
+        )
+      `)
+      .eq("route_id", routeId)
+      .eq("business_id", businessId)
+      .order("stop_order", { ascending: true }),
+  ])
 
-  if (stopsError || !stops) return { success: false, message: stopsError?.message ?? "Stops not found." }
+  if (!routeRes.data) return { success: false, message: "Route not found." }
+  if (stopsRes.error || !stopsRes.data) return { success: false, message: stopsRes.error?.message ?? "Stops not found." }
+
+  const routeDate: string = routeRes.data.route_date
+  const timezone: string = scheduleRes.data?.timezone ?? "America/Chicago"
+  const schedule = scheduleRes.data ?? DEFAULT_WORK_SCHEDULE
 
   type StopRow = {
     id: string
     stop_order: number
     job: { estimated_duration_min: number; property: { lat: number | null; lng: number | null } | null } | null
   }
-  const typedStops = stops as StopRow[]
+  const typedStops = stopsRes.data as StopRow[]
 
   // Total job minutes from all stops regardless of geocoding
   const totalJobMin = typedStops.reduce(
@@ -326,15 +346,36 @@ export async function recalculateDriveTimes(
     return { success: false, message: "Drive time calculation failed — check ORS_API_KEY and server logs." }
   }
 
-  // Write travel_time_min back to each geocoded stop
-  const updates = geocodedStops.map((stop, i) =>
-    db
+  // ── Calculate estimated arrival and finish times ──────────────────────────
+  const startMins = timeToMins(schedule.schedule_start_time ?? DEFAULT_WORK_SCHEDULE.schedule_start_time)
+  const lunchStartMins = timeToMins(schedule.schedule_lunch_start_time ?? DEFAULT_WORK_SCHEDULE.schedule_lunch_start_time)
+  const lunchDuration = schedule.schedule_lunch_duration_min ?? DEFAULT_WORK_SCHEDULE.schedule_lunch_duration_min
+  const lunchEndMins = lunchStartMins + lunchDuration
+
+  let cursor = startMins // running time in minutes-since-midnight
+
+  const stopUpdates = geocodedStops.map((stop, i) => {
+    cursor += result.travelMinutes[i] ?? 0  // drive time from previous stop (0 for first)
+    // Push arrival past lunch if the crew would arrive during the break
+    if (lunchDuration > 0 && cursor >= lunchStartMins && cursor < lunchEndMins) {
+      cursor = lunchEndMins
+    }
+    const arrivalMins = cursor
+    const durationMins = stop.job?.estimated_duration_min ?? 0
+    cursor = arrivalMins + durationMins  // departure = finish time
+
+    return db
       .from("route_stops")
-      .update({ travel_time_min: result.travelMinutes[i] })
+      .update({
+        travel_time_min: result.travelMinutes[i],
+        est_arrival: localMinsToUTCISO(routeDate, arrivalMins, timezone),
+        est_finish: localMinsToUTCISO(routeDate, cursor, timezone),
+      })
       .eq("id", stop.id)
-      .eq("business_id", businessId),
-  )
-  await Promise.all(updates)
+      .eq("business_id", businessId)
+  })
+
+  await Promise.all(stopUpdates)
 
   // Update route totals
   await db
@@ -356,6 +397,11 @@ export async function recalculateDriveTimes(
     success: true,
     message: `Drive times updated${note}.`,
   }
+}
+
+function timeToMins(hhmm: string): number {
+  const [h, m] = (hhmm ?? "08:00").split(":").map(Number)
+  return (h ?? 0) * 60 + (m ?? 0)
 }
 
 // ─── Optimize stop order (nearest-neighbor TSP) ───────────────────────────────

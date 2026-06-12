@@ -4,7 +4,8 @@ import { GeocodePropertiesCard } from "@/components/settings/geocode-properties-
 import { BusinessLocationCard } from "@/components/settings/business-location-card"
 import { CollapsiblePricingSection } from "@/components/settings/collapsible-pricing-section"
 import { PushNotificationCard } from "@/components/settings/push-notification-card"
-import { getPricingSettings, getBusinessLocation } from "@/app/actions/settings"
+import { WorkScheduleCard } from "@/components/settings/work-schedule-card"
+import { getPricingSettings, getBusinessLocation, getWorkScheduleSettings } from "@/app/actions/settings"
 
 export const metadata = { title: "Settings" }
 
@@ -14,7 +15,7 @@ export default async function SettingsPage() {
   const db = supabase as any
   const { businessId } = await getAuthenticatedBusinessId(supabase)
 
-  const [totalPropsResult, ungeocodedResult, pricingSettings, businessLocation] = await Promise.all([
+  const [totalPropsResult, ungeocodedResult, pricingSettings, businessLocation, workSchedule] = await Promise.all([
     db
       .from("properties")
       .select("id", { count: "exact", head: true })
@@ -26,6 +27,7 @@ export default async function SettingsPage() {
       .is("lat", null),
     getPricingSettings(),
     getBusinessLocation(),
+    getWorkScheduleSettings(),
   ])
 
   const geocodingConfigured =
@@ -36,6 +38,11 @@ export default async function SettingsPage() {
       <div>
         <h1 className="text-xl font-semibold text-foreground">Settings</h1>
         <p className="text-sm text-muted-foreground">Manage your account and integrations.</p>
+      </div>
+
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-foreground">Work Schedule</h2>
+        <WorkScheduleCard settings={workSchedule} />
       </div>
 
       <CollapsiblePricingSection settings={pricingSettings} />

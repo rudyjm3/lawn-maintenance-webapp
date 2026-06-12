@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { z } from "zod"
-import { type PricingSettings, DEFAULT_PRICING_SETTINGS, type BusinessLocation } from "@/types"
+import { type PricingSettings, DEFAULT_PRICING_SETTINGS, type BusinessLocation, type WorkScheduleSettings, DEFAULT_WORK_SCHEDULE } from "@/types"
 import { geocodeAddress } from "@/app/actions/properties"
 
 const PricingSettingsSchema = z.object({
@@ -114,6 +114,58 @@ export async function saveBusinessLocation(
     }
   }
   return { success: true, message: "Operating location saved.", geocoded: true }
+}
+
+// ─── Work schedule settings ───────────────────────────────────────────────────
+
+const WorkScheduleSchema = z.object({
+  schedule_start_time: z.string().regex(/^\d{2}:\d{2}$/, "Use HH:MM format"),
+  schedule_end_time: z.string().regex(/^\d{2}:\d{2}$/, "Use HH:MM format"),
+  schedule_lunch_start_time: z.string().regex(/^\d{2}:\d{2}$/, "Use HH:MM format"),
+  schedule_lunch_duration_min: z.coerce.number().int().min(0).max(180),
+})
+
+export async function getWorkScheduleSettings(): Promise<WorkScheduleSettings> {
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { businessId } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return DEFAULT_WORK_SCHEDULE
+
+  const { data } = await db
+    .from("businesses")
+    .select("schedule_start_time, schedule_end_time, schedule_lunch_start_time, schedule_lunch_duration_min")
+    .eq("id", businessId)
+    .single()
+
+  return data ?? DEFAULT_WORK_SCHEDULE
+}
+
+export async function saveWorkScheduleSettings(
+  values: WorkScheduleSettings,
+): Promise<{ success: boolean; message: string }> {
+  const parsed = WorkScheduleSchema.safeParse(values)
+  if (!parsed.success) {
+    return { success: false, message: parsed.error.issues[0]?.message ?? "Validation error" }
+  }
+  if (parsed.data.schedule_start_time >= parsed.data.schedule_end_time) {
+    return { success: false, message: "End time must be after start time." }
+  }
+
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
+  if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
+
+  const { error } = await db
+    .from("businesses")
+    .update(parsed.data)
+    .eq("id", businessId)
+
+  if (error) return { success: false, message: error.message }
+  revalidatePath("/settings")
+  return { success: true, message: "Work schedule saved." }
 }
 
 // ─── Pricing settings ─────────────────────────────────────────────────────────
