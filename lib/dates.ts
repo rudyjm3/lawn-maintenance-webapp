@@ -45,3 +45,31 @@ export function formatTime(iso: string | null, fallback = "--"): string {
   if (!iso) return fallback
   return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 }
+
+// Convert a route date + minutes-since-midnight to a proper UTC ISO string,
+// accounting for the business timezone so the timestamp displays correctly in
+// the browser's local time (which matches the business timezone for single-location crews).
+export function localMinsToUTCISO(routeDate: string, minutesSinceMidnight: number, timezone: string): string {
+  const h = Math.floor(minutesSinceMidnight / 60)
+  const m = minutesSinceMidnight % 60
+  const pad = (n: number) => String(n).padStart(2, "0")
+  // Naive guess: treat the local time as UTC
+  const naive = new Date(`${routeDate}T${pad(h)}:${pad(m)}:00Z`)
+  // What time does this UTC moment show in the target timezone?
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(naive)
+  const tzH = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0") % 24
+  const tzM = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0")
+  // Clamp to ±12h to prevent date rollover for western timezones where the
+  // naive UTC moment shows the previous local calendar day (e.g. 4 AM in
+  // America/Chicago naively shows as 11 PM the day before, yielding a raw diff
+  // of -19 hours instead of +5).
+  let diffMins = (h * 60 + m) - (tzH * 60 + tzM)
+  if (diffMins > 12 * 60) diffMins -= 24 * 60
+  if (diffMins < -12 * 60) diffMins += 24 * 60
+  return new Date(naive.getTime() + diffMins * 60_000).toISOString()
+}
