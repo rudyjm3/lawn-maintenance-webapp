@@ -299,6 +299,8 @@ export interface Lead {
   status: LeadStatus
   source: string | null
   created_at: string
+  converted_client_id: string | null
+  converted_at: string | null
 }
 
 export interface Estimate {

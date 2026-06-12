@@ -2,15 +2,14 @@
 
 import { useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { UserPlus, ArrowRight } from "lucide-react"
+import { UserPlus, ArrowRight, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge"
 import { updateLeadStatus, convertLeadToClient } from "@/app/actions/leads"
 import { type LeadStatus } from "@/types"
@@ -27,6 +26,8 @@ interface Lead {
   status: LeadStatus
   source: string | null
   created_at: string
+  converted_client_id: string | null
+  converted_at: string | null
 }
 
 const COLUMNS: { status: LeadStatus; label: string }[] = [
@@ -113,7 +114,7 @@ function LeadCard({
         </span>
       )}
 
-      <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
+      <div className="flex items-center gap-1.5 pt-0.5">
         {nextStatus && nextLabel && (
           <Button
             size="sm"
@@ -127,39 +128,46 @@ function LeadCard({
           </Button>
         )}
 
-        {(lead.status === "estimate_sent" || lead.status === "won") && (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 px-2 text-xs gap-1"
-            disabled={isPending}
-            onClick={() => onConvert(lead.id, lead.name)}
-            title="Convert to client"
-          >
-            <UserPlus className="h-3 w-3" />
-          </Button>
-        )}
+        <div className="flex items-center gap-1 ml-auto shrink-0">
+          {lead.converted_client_id ? (
+            <span className="text-xs text-muted-foreground whitespace-nowrap" title="Already converted to client">
+              <UserPlus className="inline h-3 w-3 mr-1 opacity-40" />
+              {new Date(lead.converted_at!).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </span>
+          ) : (lead.status === "estimate_sent" || lead.status === "won") ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 px-2 text-xs gap-1"
+              disabled={isPending}
+              onClick={() => onConvert(lead.id, lead.name)}
+              title="Convert to client"
+            >
+              <UserPlus className="h-3 w-3" />
+            </Button>
+          ) : null}
 
-        <Select
-          value={lead.status}
-          onValueChange={(val) => onStatusChange(lead.id, val as LeadStatus)}
-          disabled={isPending}
-        >
-          <SelectTrigger
-            size="sm"
-            className="h-7 w-7 border-0 p-0 bg-muted hover:bg-muted/80 rounded shrink-0"
-            aria-label="Change status"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_OPTIONS.map(({ label, value }) => (
-              <SelectItem key={value} value={value}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <LeadStatusBadge status={lead.status} />
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                aria-label="Change status"
+                disabled={isPending}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {STATUS_OPTIONS.map(({ label, value }) => (
+                <DropdownMenuItem key={value} onClick={() => onStatusChange(lead.id, value as LeadStatus)}>
+                  {label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </div>
   )

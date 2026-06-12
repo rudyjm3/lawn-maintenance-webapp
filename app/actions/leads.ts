@@ -158,10 +158,10 @@ export async function convertLeadToClient(leadId: string): Promise<LeadActionSta
     if (propertyError) return { success: false, message: propertyError.message }
   }
 
-  // Mark lead as won
+  // Mark lead as won and record conversion
   const { error: leadUpdateError } = await db
     .from("leads")
-    .update({ status: "won" })
+    .update({ status: "won", converted_client_id: client.id, converted_at: new Date().toISOString() })
     .eq("id", leadId)
     .eq("business_id", businessId)
 

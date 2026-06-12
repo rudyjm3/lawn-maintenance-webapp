@@ -11,7 +11,7 @@ export default async function LeadsPage() {
 
   const leadsResult = await db
     .from("leads")
-    .select("id, name, email, phone, service_address, requested_services, status, source, created_at")
+    .select("id, name, email, phone, service_address, requested_services, status, source, created_at, converted_client_id, converted_at")
     .order("created_at", { ascending: false })
 
   const leads = (leadsResult.data ?? []) as Lead[]

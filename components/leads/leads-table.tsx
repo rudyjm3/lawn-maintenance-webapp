@@ -26,6 +26,8 @@ interface Lead {
   status: LeadStatus
   source: string | null
   created_at: string
+  converted_client_id: string | null
+  converted_at: string | null
 }
 
 const STATUS_FILTERS: { label: string; value: LeadStatus | "all" }[] = [
@@ -251,7 +253,17 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
                     })}
                   </td>
                   <td className="px-4 py-3">
-                    {lead.status !== "won" && lead.status !== "lost" && (
+                    {lead.converted_client_id ? (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap" title="Already converted to client">
+                        <UserPlus className="h-3.5 w-3.5 opacity-40 shrink-0" />
+                        <span className="hidden xl:inline">
+                          {new Date(lead.converted_at!).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                        <span className="xl:hidden">
+                          {new Date(lead.converted_at!).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </span>
+                      </span>
+                    ) : lead.status !== "won" && lead.status !== "lost" ? (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -263,7 +275,7 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
                         <UserPlus className="h-3.5 w-3.5" />
                         <span className="hidden xl:inline">Convert</span>
                       </Button>
-                    )}
+                    ) : null}
                   </td>
                 </tr>
               ))}
