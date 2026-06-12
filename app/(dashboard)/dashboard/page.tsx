@@ -284,7 +284,7 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <WeatherAlertBanner affectedDays={weatherAlertDays} forecast={fullForecast} />
+      <WeatherAlertBanner affectedDays={weatherAlertDays} />
 
       {(overbookedDays.length > 0 || unassignedCount > 0 || overdueCount > 0 || openLeadsCount > 0) && (
         <div className="flex flex-col gap-3 sm:flex-row">
