@@ -21,6 +21,10 @@ function fmt(iso: string) {
   })
 }
 
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+}
+
 export async function sendRescheduleNotification(
   payload: RescheduleNotificationPayload,
 ): Promise<{ success: boolean; message: string }> {
@@ -28,7 +32,7 @@ export async function sendRescheduleNotification(
 
   const portalUrl = `${BASE_URL}/reschedule/${token}`
   const phoneBlock = businessPhone
-    ? `<a href="tel:${businessPhone}" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;color:#374151;text-decoration:none;font-size:14px;font-weight:500;">📞 Call us: ${businessPhone}</a>`
+    ? `<a href="tel:${esc(businessPhone)}" style="display:inline-block;margin-top:8px;padding:10px 20px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;color:#374151;text-decoration:none;font-size:14px;font-weight:500;">📞 Call us: ${esc(businessPhone)}</a>`
     : ""
 
   const html = `<!DOCTYPE html>
@@ -37,14 +41,14 @@ export async function sendRescheduleNotification(
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:32px 16px;">
   <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
     <div style="background:#16a34a;padding:24px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">${businessName}</h1>
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700;">${esc(businessName)}</h1>
     </div>
     <div style="padding:32px;">
       <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-bottom:24px;">
         <p style="margin:0;font-size:14px;font-weight:600;color:#92400e;">🌧️ Service rescheduled due to weather</p>
       </div>
 
-      <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Hi ${clientName},</h2>
+      <h2 style="margin:0 0 8px;font-size:18px;color:#111827;">Hi ${esc(clientName)},</h2>
       <p style="margin:0 0 24px;color:#374151;font-size:14px;line-height:1.6;">
         Due to forecasted weather conditions we've rescheduled your upcoming service. Here are the updated details:
       </p>
@@ -52,11 +56,11 @@ export async function sendRescheduleNotification(
       <table style="width:100%;margin-bottom:24px;border-collapse:collapse;">
         <tr style="background:#f9fafb;">
           <td style="padding:10px 12px;font-size:13px;color:#6b7280;font-weight:600;border-radius:6px 0 0 0;">Service</td>
-          <td style="padding:10px 12px;font-size:14px;color:#111827;border-radius:0 6px 0 0;">${serviceName}</td>
+          <td style="padding:10px 12px;font-size:14px;color:#111827;border-radius:0 6px 0 0;">${esc(serviceName)}</td>
         </tr>
         <tr>
           <td style="padding:10px 12px;font-size:13px;color:#6b7280;">Address</td>
-          <td style="padding:10px 12px;font-size:14px;color:#374151;">${address}</td>
+          <td style="padding:10px 12px;font-size:14px;color:#374151;">${esc(address)}</td>
         </tr>
         <tr style="background:#fef2f2;">
           <td style="padding:10px 12px;font-size:13px;color:#6b7280;">Original date</td>
@@ -93,7 +97,7 @@ export async function sendRescheduleNotification(
   const { error } = await resend.emails.send({
     from: FROM,
     to: clientEmail,
-    subject: `Your service on ${fmt(originalDate)} has been rescheduled — ${businessName}`,
+    subject: `Your service on ${fmt(originalDate)} has been rescheduled — ${esc(businessName)}`,
     html,
   })
 

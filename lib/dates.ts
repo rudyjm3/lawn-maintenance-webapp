@@ -52,9 +52,9 @@ export function formatTime(iso: string | null, fallback = "--"): string {
 export function localMinsToUTCISO(routeDate: string, minutesSinceMidnight: number, timezone: string): string {
   const h = Math.floor(minutesSinceMidnight / 60)
   const m = minutesSinceMidnight % 60
-  const pad = (n: number) => String(n).padStart(2, "0")
-  // Naive guess: treat the local time as UTC
-  const naive = new Date(`${routeDate}T${pad(h)}:${pad(m)}:00Z`)
+  // Use ms arithmetic so routes past midnight (cursor >= 1440) stay valid;
+  // string construction like `T25:00:00Z` would be an invalid ISO date.
+  const naive = new Date(parseUtcDate(routeDate).getTime() + minutesSinceMidnight * 60_000)
   // What time does this UTC moment show in the target timezone?
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
