@@ -352,25 +352,52 @@ export async function recalculateDriveTimes(
   const lunchDuration = schedule.schedule_lunch_duration_min ?? DEFAULT_WORK_SCHEDULE.schedule_lunch_duration_min
   const lunchEndMins = lunchStartMins + lunchDuration
 
-  let cursor = startMins // running time in minutes-since-midnight
+  // Index geocoded stops so we can look up their ORS travel times while
+  // walking the full stop list in order.  Non-geocoded stops contribute zero
+  // drive time but their service time still advances the cursor so that later
+  // geocoded stops are not shown as too early.
+  const geocodedIndexById = new Map<string, number>()
+  geocodedStops.forEach((s, i) => geocodedIndexById.set(s.id, i))
 
-  const stopUpdates = geocodedStops.map((stop, i) => {
-    cursor += result.travelMinutes[i] ?? 0  // drive time from previous stop (0 for first)
-    // Push arrival past lunch if the crew would arrive during the break
+  let cursor = startMins // running minutes-since-midnight
+
+  const stopUpdates = typedStops.map((stop) => {
+    const geoIdx = geocodedIndexById.get(stop.id)
+    const isGeocoded = geoIdx !== undefined
+    const travelMins = isGeocoded ? (result.travelMinutes[geoIdx] ?? 0) : 0
+
+    cursor += travelMins
+
+    // Push arrival past lunch if crew would arrive during the break
     if (lunchDuration > 0 && cursor >= lunchStartMins && cursor < lunchEndMins) {
       cursor = lunchEndMins
     }
+
     const arrivalMins = cursor
     const durationMins = stop.job?.estimated_duration_min ?? 0
-    cursor = arrivalMins + durationMins  // departure = finish time
+    cursor = arrivalMins + durationMins  // provisional departure
 
+    // If the job started before lunch but runs into/past the lunch window,
+    // add the break so departure is correctly pushed after lunch ends.
+    if (lunchDuration > 0 && arrivalMins < lunchStartMins && cursor >= lunchStartMins) {
+      cursor += lunchDuration
+    }
+
+    if (isGeocoded) {
+      return db
+        .from("route_stops")
+        .update({
+          travel_time_min: travelMins,
+          est_arrival: localMinsToUTCISO(routeDate, arrivalMins, timezone),
+          est_finish: localMinsToUTCISO(routeDate, cursor, timezone),
+        })
+        .eq("id", stop.id)
+        .eq("business_id", businessId)
+    }
+    // Non-geocoded stop: clear stale ETAs but leave travel_time_min at 0
     return db
       .from("route_stops")
-      .update({
-        travel_time_min: result.travelMinutes[i],
-        est_arrival: localMinsToUTCISO(routeDate, arrivalMins, timezone),
-        est_finish: localMinsToUTCISO(routeDate, cursor, timezone),
-      })
+      .update({ est_arrival: null, est_finish: null })
       .eq("id", stop.id)
       .eq("business_id", businessId)
   })

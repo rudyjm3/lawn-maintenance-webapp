@@ -64,7 +64,12 @@ export function localMinsToUTCISO(routeDate: string, minutesSinceMidnight: numbe
   }).formatToParts(naive)
   const tzH = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0") % 24
   const tzM = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0")
-  // Shift the naive UTC by the difference between desired local time and actual local time
-  const diffMs = ((h * 60 + m) - (tzH * 60 + tzM)) * 60_000
-  return new Date(naive.getTime() + diffMs).toISOString()
+  // Clamp to ±12h to prevent date rollover for western timezones where the
+  // naive UTC moment shows the previous local calendar day (e.g. 4 AM in
+  // America/Chicago naively shows as 11 PM the day before, yielding a raw diff
+  // of -19 hours instead of +5).
+  let diffMins = (h * 60 + m) - (tzH * 60 + tzM)
+  if (diffMins > 12 * 60) diffMins -= 24 * 60
+  if (diffMins < -12 * 60) diffMins += 24 * 60
+  return new Date(naive.getTime() + diffMins * 60_000).toISOString()
 }
