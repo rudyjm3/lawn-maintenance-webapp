@@ -42,7 +42,7 @@ function nextDay(iso: string) {
 
 function arrivalGroup(job: RescheduleJob): "morning" | "afternoon" | "unrouted" {
   if (!job.est_arrival) return "unrouted"
-  const hour = parseInt(job.est_arrival.split(":")[0] ?? "0", 10)
+  const hour = new Date(job.est_arrival).getHours()
   return hour < 12 ? "morning" : "afternoon"
 }
 
@@ -229,6 +229,12 @@ export function WeatherReschedulePanel({
                       <>
                         <GroupHeader label="🌇 Afternoon" groupJobs={afternoon} />
                         {afternoon.map((j) => <JobRow key={j.id} job={j} />)}
+                      </>
+                    )}
+                    {unrouted.length > 0 && (
+                      <>
+                        <GroupHeader label="📋 Unrouted" groupJobs={unrouted} />
+                        {unrouted.map((j) => <JobRow key={j.id} job={j} />)}
                       </>
                     )}
                   </>

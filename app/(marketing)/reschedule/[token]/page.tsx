@@ -24,8 +24,7 @@ export default async function ReschedulePage({ params }: { params: Promise<{ tok
     .select(`
       id, token, original_date, proposed_date, status, client_chosen_date, business_id,
       client:clients(name),
-      job:jobs(id, title),
-      property:properties!inner(address)
+      job:jobs(id, title, property:properties(address))
     `)
     .eq("token", token)
     .maybeSingle()
@@ -43,7 +42,7 @@ export default async function ReschedulePage({ params }: { params: Promise<{ tok
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const job = (Array.isArray(req.job) ? (req.job as any[])[0] : req.job) as any
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const property = (Array.isArray(req.property) ? (req.property as any[])[0] : req.property) as any
+  const property = (Array.isArray(job?.property) ? (job.property as any[])[0] : job?.property) as any
 
   const businessName: string = biz?.business_name ?? "GreenRoute"
   const businessPhone: string | null = biz?.phone ?? null

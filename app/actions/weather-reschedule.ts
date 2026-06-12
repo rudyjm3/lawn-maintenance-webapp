@@ -170,6 +170,15 @@ export async function rescheduleSelectedJobs(params: {
 
   if (updateError) return { success: false, message: updateError.message }
 
+  // Remove route_stops for rescheduled jobs so crew doesn't see them on the original rain-day route
+  const { error: stopsError } = await db
+    .from("route_stops")
+    .delete()
+    .in("job_id", verifiedIds)
+    .eq("business_id", businessId)
+
+  if (stopsError) return { success: false, message: stopsError.message }
+
   // Fetch business info for email
   let businessName = "GreenRoute"
   let businessPhone: string | null = null
