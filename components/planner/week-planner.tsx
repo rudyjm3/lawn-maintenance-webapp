@@ -1,18 +1,18 @@
 "use client"
 
-import { startTransition, useCallback, useRef, useState, useTransition } from "react"
+import { startTransition, useCallback, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react"
-import { updateJobSchedule, rescheduleJobsForDate } from "@/app/actions/jobs"
+import { updateJobSchedule } from "@/app/actions/jobs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { formatLocalDate } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 import { CapacityBar } from "./capacity-bar"
 import { JobChip } from "./job-chip"
 import { BalancingSuggestionsDialog } from "./balancing-suggestions-dialog"
+import { WeatherReschedulePanel } from "./weather-reschedule-panel"
 import type { Job, WeekDaySnapshot } from "@/types"
 import type { DayWeather } from "@/lib/weather"
 
@@ -60,67 +60,6 @@ function buildWeekDays(anchor: Date, allJobs: Job[]): WeekDaySnapshot[] {
   })
 }
 
-// ─── Weather reschedule dialog ────────────────────────────────────────────────
-
-function WeatherRescheduleDialog({
-  fromDate,
-  open,
-  onOpenChange,
-}: {
-  fromDate: string
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  const [toDate, setToDate] = useState("")
-  const [isPending, startReschedule] = useTransition()
-  const router = useRouter()
-
-  const fromLabel = new Date(`${fromDate}T12:00:00`).toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-  })
-
-  function handleReschedule() {
-    if (!toDate) return
-    startReschedule(async () => {
-      const result = await rescheduleJobsForDate(fromDate, toDate)
-      if (result.success) {
-        toast.success(result.message)
-        onOpenChange(false)
-        startTransition(() => router.refresh())
-      } else {
-        toast.error(result.message)
-      }
-    })
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Reschedule due to weather</DialogTitle>
-          <DialogDescription>
-            Move all jobs from{" "}
-            <span className="font-medium text-foreground">{fromLabel}</span> to a new date.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex gap-2 pt-1">
-          <input
-            type="date"
-            value={toDate}
-            min={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => setToDate(e.target.value)}
-            className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
-          <Button onClick={handleReschedule} disabled={!toDate || isPending}>
-            {isPending ? "Moving…" : "Move Jobs"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 // ─── Day column header ────────────────────────────────────────────────────────
 
@@ -187,10 +126,11 @@ function DayHeader({
         )}
       </div>
 
-      <WeatherRescheduleDialog
+      <WeatherReschedulePanel
         fromDate={day.date}
         open={showReschedule}
         onOpenChange={setShowReschedule}
+        weatherLabel={weather ? `${weather.icon} ${weather.label}` : undefined}
       />
     </div>
   )
