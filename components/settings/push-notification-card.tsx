@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Bell, BellOff } from "lucide-react"
+import { Bell, BellOff, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 
@@ -14,22 +14,22 @@ function urlBase64ToUint8Array(base64String: string) {
   return output
 }
 
-export function PushEnableButton() {
-  const [supported, setSupported] = useState(false)
+export function PushNotificationCard() {
+  const [supported, setSupported] = useState<boolean | null>(null)
   const [subscribed, setSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setSupported(false)
+      return
+    }
     setSupported(true)
-
     navigator.serviceWorker.ready.then(async (reg) => {
       const sub = await reg.pushManager.getSubscription()
       setSubscribed(!!sub)
     })
   }, [])
-
-  if (!supported) return null
 
   async function handleEnable() {
     setLoading(true)
@@ -42,7 +42,7 @@ export function PushEnableButton() {
 
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
       if (!vapidKey) {
-        toast.error("Push notifications are not configured yet.")
+        toast.error("Push notifications are not configured.")
         return
       }
 
@@ -52,11 +52,10 @@ export function PushEnableButton() {
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       })
 
-      const serialized = JSON.parse(JSON.stringify(sub))
       const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(serialized),
+        body: JSON.stringify(JSON.parse(JSON.stringify(sub))),
       })
 
       if (res.ok) {
@@ -95,19 +94,41 @@ export function PushEnableButton() {
   }
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="h-9 w-9"
-      title={subscribed ? "Disable push notifications" : "Enable push notifications"}
-      disabled={loading}
-      onClick={subscribed ? handleDisable : handleEnable}
-    >
-      {subscribed ? (
-        <Bell className="h-4 w-4 text-green-600" />
-      ) : (
-        <BellOff className="h-4 w-4 text-muted-foreground" />
-      )}
-    </Button>
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            {subscribed ? (
+              <Bell className="h-4.5 w-4.5 text-primary" />
+            ) : (
+              <BellOff className="h-4.5 w-4.5 text-muted-foreground" />
+            )}
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">Browser Push Notifications</p>
+            <p className="text-xs text-muted-foreground">
+              {supported === false
+                ? "Your browser does not support push notifications."
+                : subscribed
+                  ? "You will receive job updates and alerts in this browser."
+                  : "Get notified about job activity and alerts directly in this browser."}
+            </p>
+          </div>
+        </div>
+
+        {supported !== false && (
+          <Button
+            size="sm"
+            variant={subscribed ? "outline" : "default"}
+            disabled={loading || supported === null}
+            onClick={subscribed ? handleDisable : handleEnable}
+            className="shrink-0"
+          >
+            {loading && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+            {loading ? "Saving…" : subscribed ? "Disable" : "Enable"}
+          </Button>
+        )}
+      </div>
+    </div>
   )
 }

@@ -1,10 +1,16 @@
 import webpush from "web-push"
 
-webpush.setVapidDetails(
-  `mailto:${process.env.RESEND_FROM_EMAIL ?? "notifications@greenroute.app"}`,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-)
+function getWebPush() {
+  const pub = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const priv = process.env.VAPID_PRIVATE_KEY
+  if (!pub || !priv) throw new Error("VAPID keys are not configured in environment variables")
+  webpush.setVapidDetails(
+    `mailto:${process.env.RESEND_FROM_EMAIL ?? "notifications@greenroute.app"}`,
+    pub,
+    priv
+  )
+  return webpush
+}
 
 export interface PushPayload {
   title: string
@@ -24,7 +30,7 @@ export async function sendPushToSubscription(
   payload: PushPayload
 ): Promise<{ success: boolean; gone?: boolean }> {
   try {
-    await webpush.sendNotification(
+    await getWebPush().sendNotification(
       {
         endpoint: sub.endpoint,
         keys: { p256dh: sub.p256dh, auth: sub.auth_key },

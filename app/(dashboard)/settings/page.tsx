@@ -3,6 +3,7 @@ import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 import { GeocodePropertiesCard } from "@/components/settings/geocode-properties-card"
 import { BusinessLocationCard } from "@/components/settings/business-location-card"
 import { CollapsiblePricingSection } from "@/components/settings/collapsible-pricing-section"
+import { PushNotificationCard } from "@/components/settings/push-notification-card"
 import { getPricingSettings, getBusinessLocation } from "@/app/actions/settings"
 
 export const metadata = { title: "Settings" }
@@ -38,6 +39,11 @@ export default async function SettingsPage() {
       </div>
 
       <CollapsiblePricingSection settings={pricingSettings} />
+
+      <div className="space-y-4">
+        <h2 className="text-sm font-semibold text-foreground">Notifications</h2>
+        <PushNotificationCard />
+      </div>
 
       <div className="space-y-4">
         <h2 className="text-sm font-semibold text-foreground">Map & Geocoding</h2>
