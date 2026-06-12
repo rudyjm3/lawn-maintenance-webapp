@@ -56,7 +56,7 @@ export function PushEnableButton() {
       const res = await fetch("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...serialized, role: "owner" }),
+        body: JSON.stringify(serialized),
       })
 
       if (res.ok) {

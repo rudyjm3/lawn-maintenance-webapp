@@ -43,8 +43,6 @@ export function SendEmailDialog({ clientId, clientName, clientEmail }: SendEmail
     startTransition(async () => {
       const result = await sendClientEmail({
         clientId,
-        toEmail: clientEmail,
-        toName: clientName,
         subject: subject.trim(),
         body: body.trim(),
       })

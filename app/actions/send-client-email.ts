@@ -7,8 +7,6 @@ import { sendClientMessage } from "@/lib/email/send-client-message"
 
 const Schema = z.object({
   clientId: z.string().uuid(),
-  toEmail: z.string().email(),
-  toName: z.string().min(1),
   subject: z.string().min(1).max(200),
   body: z.string().min(1).max(5000),
 })
@@ -29,18 +27,32 @@ export async function sendClientEmail(
   const { businessId, error: bizError } = await getAuthenticatedBusinessId(supabase)
   if (!businessId) return { success: false, message: bizError ?? "Not authenticated." }
 
+  // Load the client from the DB, scoped to this business — never trust caller-supplied email
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = supabase as any
+  const { data: client, error: clientError } = await db
+    .from("clients")
+    .select("id, name, email")
+    .eq("id", parsed.data.clientId)
+    .eq("business_id", businessId)
+    .single()
+
+  if (clientError || !client) {
+    return { success: false, message: "Client not found." }
+  }
+  if (!client.email) {
+    return { success: false, message: "This client has no email address on file." }
+  }
+
   const result = await sendClientMessage({
-    toEmail: parsed.data.toEmail,
-    toName: parsed.data.toName,
+    toEmail: client.email,
+    toName: client.name,
     subject: parsed.data.subject,
     body: parsed.data.body,
   })
 
   if (!result.success) return result
 
-  // Log the outbound communication
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = supabase as any
   await db.from("communications").insert({
     business_id: businessId,
     client_id: parsed.data.clientId,

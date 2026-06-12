@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getAuthenticatedBusinessId } from "@/lib/auth/business"
 
+const CREW_ROLES = new Set(["crew_lead", "crew_member"])
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -11,23 +13,31 @@ export async function POST(req: NextRequest) {
   if (!businessId) return NextResponse.json({ error: "No business found." }, { status: 403 })
 
   const body = await req.json()
-  const { endpoint, keys, role } = body as {
+  const { endpoint, keys } = body as {
     endpoint: string
     keys: { p256dh: string; auth: string }
-    role?: string
   }
 
   if (!endpoint || !keys?.p256dh || !keys?.auth) {
     return NextResponse.json({ error: "Invalid subscription data." }, { status: 400 })
   }
 
+  // Derive role from the authenticated user's profile — never trust the client payload
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = supabase as any
+  const { data: userRow } = await db
+    .from("users")
+    .select("role")
+    .eq("auth_user_id", user.id)
+    .maybeSingle()
+
+  const serverRole = CREW_ROLES.has(userRow?.role) ? "crew" : "owner"
+
   const { error } = await db.from("push_subscriptions").upsert(
     {
       business_id: businessId,
       auth_user_id: user.id,
-      role: role ?? "owner",
+      role: serverRole,
       endpoint,
       p256dh: keys.p256dh,
       auth_key: keys.auth,

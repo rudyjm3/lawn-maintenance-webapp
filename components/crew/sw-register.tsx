@@ -26,7 +26,7 @@ async function subscribeToPush(registration: ServiceWorkerRegistration) {
     await fetch("/api/push/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...serialized, role: "crew" }),
+      body: JSON.stringify(serialized),
     })
   } catch {
     // Push subscription is best-effort

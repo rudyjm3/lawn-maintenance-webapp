@@ -3,7 +3,7 @@
 
 CREATE TABLE push_subscriptions (
   id           uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-  business_id  uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+  business_id  uuid NOT NULL REFERENCES businesses (id) ON DELETE CASCADE,
   auth_user_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
   role         text NOT NULL DEFAULT 'owner',  -- 'owner' | 'crew'
   endpoint     text NOT NULL,
