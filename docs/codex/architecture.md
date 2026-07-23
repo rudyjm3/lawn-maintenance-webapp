@@ -32,9 +32,10 @@ uses Leaflet/react-leaflet and Open-Meteo + OpenRouteService. Trust this file, n
 ## Why Server Actions over API routes
 Nearly all mutations go through Server Actions (`app/actions/*.ts`, 26 files, all `"use server"`), not API
 routes. `app/api/**/route.ts` is reserved for cases that must be plain HTTP: cron jobs (need bearer-token auth,
-not a browser session), Stripe webhooks (need raw signature verification), and public token-based endpoints
-(push subscribe/unsubscribe, reschedule response, Supabase auth confirm callbacks). See `routes.md` for the
-full list.
+not a browser session), Stripe webhooks (need raw signature verification), session-authenticated plain-HTTP
+endpoints (push subscribe/unsubscribe — require a logged-in Supabase user, subscribe also requires business
+membership), and public token-based endpoints (reschedule response, Supabase auth confirm callbacks). See
+`routes.md` for the full list.
 
 ## Auth model
 Supabase Auth (cookie-session via `@supabase/ssr`). Two auth "domains" share the same `auth.users` table:
